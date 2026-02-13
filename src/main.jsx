@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
 import { 
   Search, 
   User, 
@@ -71,7 +72,7 @@ const INITIAL_PRODUCTS = [
   }
 ];
 
-export default function App() {
+function App() {
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -82,6 +83,20 @@ export default function App() {
     title: "", price: "", size: "M", image: "", condition: "Ropa usada", 
     category: "remeras", gender: "Femenino"
   });
+
+  // Inyectar Tailwind CSS y Fuentes automáticamente
+  useEffect(() => {
+    if (!document.getElementById('tailwind-cdn')) {
+      const script = document.createElement("script");
+      script.id = 'tailwind-cdn';
+      script.src = "https://cdn.tailwindcss.com";
+      document.head.appendChild(script);
+    }
+    const fontLink = document.createElement("link");
+    fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,900;1,400&family=Inter:wght@300;400;700;900&display=swap";
+    fontLink.rel = "stylesheet";
+    document.head.appendChild(fontLink);
+  }, []);
 
   const handleUpload = (e) => {
     e.preventDefault();
@@ -115,7 +130,7 @@ export default function App() {
         .font-sans { font-family: 'Inter', sans-serif !important; }
       `}</style>
 
-      {/* Banner de Promoción */}
+      {/* Banner Superior */}
       <div className="bg-[#1a1a1a] text-[#d4af37] py-2 overflow-hidden border-b border-[#d4af37]/20">
         <div className="animate-marquee gap-10 text-[10px] font-bold uppercase tracking-widest">
           <span>✨ BIENVENIDOS A +ROMA ~ OUTLET & SHOWROOM ✨</span>
@@ -125,7 +140,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Header Principal */}
+      {/* Header */}
       <header className="bg-white sticky top-0 z-40 border-b border-gray-100 shadow-sm flex items-center justify-between px-4 md:px-10 h-20">
         <div className="flex flex-col cursor-pointer" onClick={() => {setSelectedCategory(null); setSelectedGender("Todo");}}>
           <span className="text-2xl md:text-3xl font-serif tracking-[0.2em] font-light uppercase text-black leading-none">+ROMA</span>
@@ -134,27 +149,28 @@ export default function App() {
         <div className="hidden md:flex flex-1 max-w-md mx-8 relative">
           <input 
             type="text" 
-            placeholder="¿Qué prenda buscas hoy?" 
-            className="w-full bg-gray-100 rounded-full py-2.5 px-12 text-sm focus:ring-1 focus:ring-[#d4af37] outline-none"
+            placeholder="Buscar marcas o prendas..." 
+            className="w-full bg-gray-100 rounded-full py-2.5 px-12 text-sm focus:ring-1 focus:ring-[#d4af37] outline-none transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <Search className="absolute left-4 top-2.5 text-gray-400" size={18} />
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsModalOpen(true)} className="bg-black text-white px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-[#d4af37] flex items-center gap-2 shadow-lg transition-colors">
-            <PlusCircle size={16} /> <span className="hidden sm:inline">Vender</span>
+          <button onClick={() => setIsModalOpen(true)} className="bg-black text-white px-5 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-[#d4af37] transition-all flex items-center gap-2 shadow-lg">
+            <PlusCircle size={14} />
+            <span className="hidden sm:inline">Vender</span>
           </button>
-          <User className="text-gray-600" />
+          <User className="text-gray-600 w-5 h-5 cursor-pointer hover:text-black" />
         </div>
       </header>
 
-      {/* Selector de Género */}
+      {/* Filtros de Género */}
       <div className="bg-white border-b sticky top-20 z-30">
-        <div className="container mx-auto px-4 py-3 flex flex-wrap items-center justify-center gap-4">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-center gap-4">
           <div className="flex bg-gray-100 p-1 rounded-full">
             {["Masculino", "Femenino", "Todo"].map(g => (
-              <button key={g} onClick={() => setSelectedGender(g)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all ${selectedGender === g ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:text-black'}`}>
+              <button key={g} onClick={() => setSelectedGender(g)} className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase transition-all ${selectedGender === g ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:text-black'}`}>
                 {g}
               </button>
             ))}
@@ -164,64 +180,55 @@ export default function App() {
 
       {/* Categorías Visuales */}
       <section className="container mx-auto px-4 py-10">
-        <div className="flex gap-6 overflow-x-auto no-scrollbar pb-4 justify-start md:justify-center">
+        <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar pb-4 justify-start md:justify-center">
           {CATEGORIES.map(cat => (
-            <div key={cat.id} onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)} className={`group flex-shrink-0 cursor-pointer flex flex-col items-center transition-all ${selectedCategory === cat.id ? 'scale-105 opacity-100' : 'opacity-70'}`}>
-              <div className={`w-20 h-20 md:w-28 md:h-28 rounded-full overflow-hidden border-2 transition-all ${selectedCategory === cat.id ? 'border-[#d4af37] ring-4 ring-[#d4af37]/10' : 'border-transparent'}`}>
-                <img src={cat.image} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 duration-500" />
+            <div 
+              key={cat.id} 
+              onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)} 
+              className={`group flex-shrink-0 cursor-pointer flex flex-col items-center transition-all ${selectedCategory === cat.id ? 'scale-105 opacity-100' : 'opacity-70 hover:opacity-100'}`}
+            >
+              <div className={`w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-2 transition-all ${selectedCategory === cat.id ? 'border-[#d4af37] ring-4 ring-[#d4af37]/10' : 'border-transparent'}`}>
+                <img src={cat.image} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
               </div>
-              <span className="mt-3 text-[9px] font-black uppercase tracking-widest text-gray-600">{cat.name}</span>
+              <span className={`mt-3 text-[9px] font-black uppercase tracking-widest ${selectedCategory === cat.id ? 'text-[#d4af37]' : 'text-gray-500'}`}>{cat.name}</span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Sección de Marcas */}
-      <section className="bg-gray-50 py-8 border-y border-gray-100 mb-10">
-        <div className="container mx-auto px-4 flex flex-wrap justify-center gap-6 opacity-60">
-          {BRANDS.slice(0, 15).map((brand, idx) => (
-            <div key={idx} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-              <img 
-                src={brand.logo} 
-                alt={brand.name} 
-                className="max-w-[70%] max-h-[70%] object-contain" 
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentNode.innerHTML = `<span style="font-size: 8px; font-weight: bold; color: #999; text-transform: uppercase;">${brand.name.charAt(0)}</span>`;
-                }} 
-              />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Grid de Productos - 5 Columnas en Desktop */}
+      {/* Grid de Productos Principal (5 Columnas) */}
       <main className="container mx-auto px-4">
         {filteredProducts.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
             <Filter size={48} className="mx-auto text-gray-200 mb-4" />
-            <p className="text-gray-400 font-medium">No hay prendas con estos filtros.</p>
+            <p className="text-gray-400 font-medium font-sans text-sm">No encontramos lo que buscas.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {filteredProducts.map(product => (
-              <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 group hover:shadow-xl transition-all flex flex-col h-full">
-                <div className="p-3 flex items-center justify-between">
+              <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 group hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+                <div className="p-3 flex items-center justify-between border-b border-gray-50">
                   <div className="flex items-center gap-2">
-                    <img src={product.user.avatar} className="w-7 h-7 rounded-full" alt="" />
-                    <span className="text-[9px] font-bold text-gray-800">{product.user.name}</span>
+                    <img src={product.user.avatar} className="w-6 h-6 rounded-full" alt="" />
+                    <span className="text-[9px] font-bold text-gray-700 truncate max-w-[80px] font-sans">{product.user.name}</span>
+                  </div>
+                  <Tag size={12} className="text-gray-300" />
+                </div>
+                
+                <div className="relative aspect-[4/5] overflow-hidden bg-gray-50">
+                  <img src={product.image} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="" />
+                  <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-md shadow-sm">
+                    <span className="text-[8px] font-black uppercase text-black font-sans">Talle {product.size}</span>
                   </div>
                 </div>
-                <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
-                  <img src={product.image} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
-                </div>
+
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-xs font-medium text-gray-500 mb-1 truncate">{product.title}</h3>
-                    <span className="text-lg font-black tracking-tighter text-black">${product.price.toLocaleString()}</span>
+                    <h3 className="text-[11px] font-medium text-gray-500 mb-1 truncate uppercase tracking-tight font-sans">{product.title}</h3>
+                    <span className="text-lg font-black tracking-tighter text-black font-sans">${product.price.toLocaleString()}</span>
                   </div>
-                  <button className="w-full mt-4 bg-black text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#d4af37] transition-colors">
-                    Detalle
+                  <button className="w-full mt-4 bg-black text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#d4af37] transition-all font-sans">
+                    Ver Detalle
                   </button>
                 </div>
               </div>
@@ -230,20 +237,27 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal de Publicación */}
+      {/* Modal de Venta */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
-            <h2 className="text-2xl font-black uppercase italic mb-8 text-black tracking-tighter">+Roma Vender</h2>
+            <h2 className="text-2xl font-black uppercase italic mb-8 text-black tracking-tighter text-center font-serif">+Roma Vender</h2>
             <form onSubmit={handleUpload} className="space-y-5">
-              <input type="text" placeholder="¿Qué vendes?" className="w-full border-b border-gray-200 py-3 text-sm outline-none focus:border-[#d4af37]" onChange={(e) => setNewProduct({...newProduct, title: e.target.value})} required />
-              <input type="number" placeholder="Precio en $" className="w-full border-b border-gray-200 py-3 text-sm outline-none focus:border-[#d4af37]" onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} required />
-              <button type="submit" className="w-full bg-black text-white py-4 rounded-full font-black uppercase text-xs tracking-widest hover:bg-[#d4af37] shadow-lg transition-all">Publicar Prenda</button>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-2">Cerrar</button>
+              <input type="text" placeholder="¿Qué vendes?" className="w-full border-b border-gray-200 py-3 text-sm outline-none focus:border-[#d4af37] transition-all font-sans" onChange={(e) => setNewProduct({...newProduct, title: e.target.value})} required />
+              <input type="number" placeholder="Precio $" className="w-full border-b border-gray-200 py-3 text-sm outline-none focus:border-[#d4af37] transition-all font-sans" onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} required />
+              <button type="submit" className="w-full bg-black text-white py-4 rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-[#d4af37] shadow-xl transition-all font-sans">Publicar ahora</button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-gray-400 text-[9px] font-bold uppercase tracking-widest mt-2 hover:text-black transition-colors font-sans text-center">Cancelar</button>
             </form>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+// ARRANQUE DE LA APP
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(<App />);
 }
