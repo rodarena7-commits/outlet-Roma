@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Configuración Global +Roma --- */
+
+:root {
+  --color-roma-gold: #d4af37;
+  --color-roma-bg: #faf9f6;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--color-roma-bg);
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Títulos con estilo elegante */
+h1, h2, .font-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+/* --- Utilidades Personalizadas --- */
+
+/* Ocultar barra de desplazamiento manteniendo funcionalidad */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE y Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Animación del banner superior (Marquee) */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: inline-block;
+  animation: marquee 30s linear infinite;
+}
+
+/* Efectos de transición suaves para las tarjetas */
+.group:hover img {
+  transform: scale(1.05);
+}
+
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
