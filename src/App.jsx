@@ -16,13 +16,13 @@ import {
 
 // --- Configuración de Firebase (Vulnerable - Mover a variables de entorno) ---
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDm0yBRVNmZWrfSSL_-ueXC0S0f771ofjU",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "showroom-7a0a5.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "showroom-7a0a5",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "showroom-7a0a5.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1088867111350",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1088867111350:web:f7d557749f8037021b7117",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-R8FYLYS8FK"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Inicializar Firebase
