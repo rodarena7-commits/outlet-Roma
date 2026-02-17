@@ -1280,7 +1280,7 @@ export default function App() {
     return total;
   };
 
-  // --- Modificación 1: Función para iniciar chat con el vendedor (Admin) ---
+  // --- Modificación: Función para iniciar chat entre administrador y vendedor ---
   const handleAdminContactSeller = async (sellerId, product) => {
     if (!user?.isAdmin) return;
 
@@ -1303,9 +1303,8 @@ export default function App() {
         sellerName: users[sellerId]?.name || 'Vendedor',
         sellerAvatar: users[sellerId]?.avatar || '',
         adminId: user.uid,
-        adminName: 'Administrador', // Nombre fijo para el admin
-        // --- Modificación 1: Usar /icon.png para el avatar del admin ---
-        adminAvatar: '/icon.png',
+        adminName: user.name,
+        adminAvatar: user.avatar,
         participants: [user.uid, sellerId],
         lastMessage: "Chat iniciado por el administrador",
         lastMessageAt: Timestamp.now(),
@@ -2975,7 +2974,7 @@ export default function App() {
                                 </button>
                               </>
                             )}
-                            {/* --- Modificación 1: Botón para contactar vendedor (Admin) con selector de producto --- */}
+                            {/* --- Modificación: Botón para contactar vendedor (Admin) con chat privado --- */}
                             {user?.isAdmin && !product.sold && (
                               <button
                                 onClick={() => handleAdminContactSeller(product.userId, product)}
