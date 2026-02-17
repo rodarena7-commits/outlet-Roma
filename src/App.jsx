@@ -42,7 +42,7 @@ const CATEGORIES = [
   { id: 'maquillajes', name: 'Maquillajes', image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=200' },
   { id: 'tecnologia', name: 'Tecnología', image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=200' },
   // --- Modificación: Imagen de heladera para Electrodomésticos ---
-  { id: 'electrodomesticos', name: 'Electrodomésticos', image: 'https://images.unsplash.com/photo-1584568694244-4fb0b8923938?auto=format&fit=crop&q=80&w=200' }, // Cambio: Imagen de heladera
+  { id: 'electrodomesticos', name: 'Electrodomésticos', image: '/electro.png' }, // Cambio: Imagen de heladera
 ];
 
 // --- Modificación 5: Textos de condición sin "Ropa" ---
@@ -2974,7 +2974,9 @@ export default function App() {
                                 </button>
                               </>
                             )}
-                            {/* --- Modificación: Botón para contactar vendedor (Admin) con chat privado --- */}
+                            
+                            {/* --- BOTÓN MORADO PARA CONTACTAR VENDEDOR --- */}
+                            {/* ESTE ES EL BOTÓN QUE SE AGREGÓ - DEBE ESTAR AQUÍ */}
                             {user?.isAdmin && !product.sold && (
                               <button
                                 onClick={() => handleAdminContactSeller(product.userId, product)}
@@ -2984,6 +2986,7 @@ export default function App() {
                                 <MessageSquare size={22} />
                               </button>
                             )}
+                            
                             <button
                               onClick={() => handleEditProduct(product)}
                               className="p-3 rounded-xl bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 transition-all transform hover:scale-105"
