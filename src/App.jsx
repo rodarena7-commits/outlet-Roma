@@ -3069,4 +3069,11 @@ export default function App() {
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .font-serif { font-family: 'Playfair Display', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scroll
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes slide-in-right { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in-right { animation: slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        .h-18 { height: 4.5rem; }
+      `}</style>
+    </div>
+  );
+}
