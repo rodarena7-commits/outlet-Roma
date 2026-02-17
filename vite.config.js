@@ -1,10 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Este archivo solo debe contener la configuración de Vite
 export default defineConfig({
   plugins: [react()],
-  server: {
-    port: 3000
+  build: {
+    target: 'es2015',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2015',
+      supported: {
+        'template-literal': true
+      }
+    }
   }
 })
