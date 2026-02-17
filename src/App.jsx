@@ -771,7 +771,7 @@ export default function App() {
     ).join('\n');
     
     const mensaje = encodeURIComponent(
-      `¡Hola! Realicé una compra en +Roma:\n\n${productosTexto}\n\nTotal: $${total}\n\nTe adjunto el comprobante de pago.`
+        "¡Hola! Realicé una compra en +Roma:\n\n" + productosTexto + "\n\nTotal: $" + total + "\n\nTe adjunto el comprobante de pago."
     );
     
     // Marcar productos como vendidos
