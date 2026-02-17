@@ -763,7 +763,7 @@ export default function App() {
     const total = cartTotal;
     
     // Redirigir a MercadoPago con el total
-    window.open(`https://link.mercadopago.com.ar/masroma?amount=${total}`, "_blank");
+    window.open(`https://link.mercadopago.com.ar/masroma?amount=" +total, "_blank");
     
     // Construir mensaje de WhatsApp con los productos
     const productosTexto = cart.map(item => 
