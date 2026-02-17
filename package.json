@@ -11,7 +11,8 @@
   "dependencies": {
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.0.0"
   },
   "devDependencies": {
     "firebase": "^10.8.0",
@@ -24,4 +25,3 @@
     "vite": "^5.1.4"
   }
 }
-
