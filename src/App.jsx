@@ -41,7 +41,7 @@ const CATEGORIES = [
   { id: 'ropa-interior', name: 'Ropa interior', image: '/corpino.png' },
   { id: 'maquillajes', name: 'Maquillajes', image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=200' },
   { id: 'tecnologia', name: 'Tecnología', image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=200' },
-  { id: 'electrodomesticos', name: 'Electrodomésticos', image: 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=200' }, // Cambio: Imagen de TV LED
+  { id: 'electrodomesticos', name: 'Electrodomésticos', image: '/electro.png' }, // Cambio: Imagen de TV LED
 ];
 
 // --- Modificación 5: Textos de condición sin "Ropa" ---
