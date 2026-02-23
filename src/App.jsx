@@ -668,140 +668,186 @@ export default function App() {
     }
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!user) {
-      alert("Debes iniciar sesión para publicar");
-      return;
-    }
+const handleUpload = async (e) => {
+  e.preventDefault();
+  if (!user) {
+    alert("Debes iniciar sesión para publicar");
+    return;
+  }
 
-    // Validaciones obligatorias
-    if (newProduct.images.length === 0) {
-      alert("Debes subir al menos una imagen del producto");
-      return;
-    }
+  // Validaciones obligatorias
+  if (newProduct.images.length === 0) {
+    alert("Debes subir al menos una imagen del producto");
+    return;
+  }
 
-    if (!newProduct.title.trim()) {
-      alert("Debes ingresar un título");
-      return;
-    }
+  if (!newProduct.title.trim()) {
+    alert("Debes ingresar un título");
+    return;
+  }
 
-    if (!newProduct.price) {
-      alert("Debes ingresar un precio");
-      return;
-    }
+  if (!newProduct.price) {
+    alert("Debes ingresar un precio");
+    return;
+  }
 
-    if (newProduct.category === 'calzado' && !newProduct.shoeSize) {
-      alert("Debes seleccionar un talle de calzado");
-      return;
-    }
+  if (newProduct.category === 'calzado' && !newProduct.shoeSize) {
+    alert("Debes seleccionar un talle de calzado");
+    return;
+  }
 
-    if (newProduct.category !== 'calzado' && !newProduct.size) {
-      alert("Debes seleccionar un talle");
-      return;
-    }
+  if (newProduct.category !== 'calzado' && !newProduct.size) {
+    alert("Debes seleccionar un talle");
+    return;
+  }
 
-    if (!newProduct.whatsappNumber) {
-      alert("Debes ingresar un número de WhatsApp para recibir notificaciones de venta");
-      return;
-    }
+  if (!newProduct.whatsappNumber) {
+    alert("Debes ingresar un número de WhatsApp para recibir notificaciones de venta");
+    return;
+  }
 
-    const precio = parseInt(newProduct.price);
-    const montoNeto = precio - (precio * COMISION);
-    const comisionMonto = precio * COMISION;
+  const precio = parseInt(newProduct.price);
+  const montoNeto = precio - (precio * COMISION);
+  const comisionMonto = precio * COMISION;
 
-    const productToAdd = {
-      userId: user.uid,
-      user: {
-        name: user.name,
-        avatar: user.avatar
+  const productToAdd = {
+    userId: user.uid,
+    user: {
+      name: user.name,
+      avatar: user.avatar
+    },
+    images: newProduct.images,
+    title: newProduct.title,
+    description: newProduct.description,
+    price: precio,
+    montoNeto: montoNeto,
+    comisionMonto: comisionMonto,
+    size: newProduct.size,
+    shoeSize: newProduct.shoeSize,
+    condition: newProduct.condition,
+    category: newProduct.category,
+    gender: newProduct.gender,
+    ageGroup: newProduct.ageGroup,
+    cuotas: (newProduct.cuotas && parseInt(newProduct.cuotas) > 0) ? (newProduct.cuotas + " cuotas sin interés") : "",
+    whatsappNumber: newProduct.whatsappNumber,
+    // Medidas
+    shoulderToShoulder: newProduct.shoulderToShoulder,
+    armpitToArmpit: newProduct.armpitToArmpit,
+    length: newProduct.length,
+    waist: newProduct.waist,
+    hip: newProduct.hip,
+    inseam: newProduct.inseam,
+    outseam: newProduct.outseam,
+    likes: 0,
+    likedBy: [],
+    sold: false,
+    buyerId: null,
+    soldAt: null,
+    status: {
+      iniciada: true,
+      verificada: false,
+      aprobada: false,
+      publicada: false
+    },
+    createdAt: Timestamp.now()
+  };
+
+  // Guardar el producto en Firestore
+  const productRef = await addDoc(collection(db, "products"), productToAdd);
+
+  // Crear notificación para el usuario
+  await addDoc(collection(db, "notifications"), {
+    userId: user.uid,
+    type: "product_pending",
+    title: "Producto enviado para revisión",
+    message: `Tu producto "${newProduct.title}" está siendo revisado por nuestros administradores.`,
+    productId: productRef.id,
+    productImage: newProduct.images[0],
+    read: false,
+    createdAt: Timestamp.now()
+  });
+
+  // Buscar administradores
+  const adminUsers = await getDocs(query(collection(db, "users"), where("isAdmin", "==", true)));
+  
+  // Crear chat automático entre administrador y vendedor
+  adminUsers.docs.forEach(async (adminDoc) => {
+    const chatData = {
+      productId: productRef.id,
+      productTitle: newProduct.title,
+      productImage: newProduct.images[0],
+      sellerId: user.uid,
+      sellerName: user.name,
+      sellerAvatar: user.avatar,
+      adminId: adminDoc.id,
+      adminName: adminDoc.data().name,
+      adminAvatar: adminDoc.data().avatar,
+      participants: [user.uid, adminDoc.id],
+      lastMessage: "📦 Nueva publicación pendiente de revisión",
+      lastMessageAt: Timestamp.now(),
+      unreadCount: {
+        [user.uid]: 0,
+        [adminDoc.id]: 1
       },
-      images: newProduct.images,
-      title: newProduct.title,
-      description: newProduct.description,
-      price: precio,
-      montoNeto: montoNeto,
-      comisionMonto: comisionMonto,
-      size: newProduct.size,
-      shoeSize: newProduct.shoeSize,
-      condition: newProduct.condition,
-      category: newProduct.category,
-      gender: newProduct.gender,
-      ageGroup: newProduct.ageGroup,
-      cuotas: (newProduct.cuotas && parseInt(newProduct.cuotas) > 0) ? (newProduct.cuotas + " cuotas sin interés") : "",
-      whatsappNumber: newProduct.whatsappNumber,
-      // Medidas
-      shoulderToShoulder: newProduct.shoulderToShoulder,
-      armpitToArmpit: newProduct.armpitToArmpit,
-      length: newProduct.length,
-      waist: newProduct.waist,
-      hip: newProduct.hip,
-      inseam: newProduct.inseam,
-      outseam: newProduct.outseam,
-      likes: 0,
-      likedBy: [],
-      sold: false,
-      buyerId: null,
-      soldAt: null,
-      status: {
-        iniciada: true,
-        verificada: false,
-        aprobada: false,
-        publicada: false
-      },
+      type: 'product_review',
       createdAt: Timestamp.now()
     };
-
-    const productRef = await addDoc(collection(db, "products"), productToAdd);
-
-    // Crear chat automático entre administrador y vendedor
-    const adminUsers = await getDocs(query(collection(db, "users"), where("isAdmin", "==", true)));
-    adminUsers.docs.forEach(async (adminDoc) => {
-      const chatData = {
-        productId: productRef.id,
-        productTitle: newProduct.title,
-        productImage: newProduct.images[0],
-        sellerId: user.uid,
-        sellerName: user.name,
-        sellerAvatar: user.avatar,
-        adminId: adminDoc.id,
-        adminName: adminDoc.data().name,
-        adminAvatar: adminDoc.data().avatar,
-        participants: [user.uid, adminDoc.id],
-        lastMessage: "Chat iniciado por nueva publicación",
-        lastMessageAt: Timestamp.now(),
-        unreadCount: {
-          [user.uid]: 0,
-          [adminDoc.id]: 1
-        }
-      };
-      await addDoc(collection(db, "chats"), chatData);
+    
+    const chatRef = await addDoc(collection(db, "chats"), chatData);
+    
+    // Enviar mensaje automático del sistema
+    await addDoc(collection(db, "messages", chatRef.id, "chatMessages"), {
+      senderId: 'system',
+      senderName: 'Sistema +Roma',
+      senderAvatar: '/masroma.png',
+      text: `📦 **Nueva publicación para revisar**\n\nProducto: ${newProduct.title}\nPrecio: $${precio.toLocaleString()}\n\nEl administrador revisará esta publicación y te contactará si necesita más información.`,
+      timestamp: Timestamp.now(),
+      read: false,
+      system: true
     });
 
-    // Cerrar el modal después de publicar exitosamente
-    setIsModalOpen(false);
-    setNewProduct({
-      title: "",
-      description: "",
-      price: "",
-      size: "M",
-      shoeSize: "",
-      images: [],
-      condition: "Ropa usada",
-      category: "remeras",
-      gender: "Femenino",
-      ageGroup: "Adulto",
-      cuotas: "",
-      whatsappNumber: "",
-      shoulderToShoulder: "",
-      armpitToArmpit: "",
-      length: "",
-      waist: "",
-      hip: "",
-      inseam: "",
-      outseam: ""
+    // Notificar al administrador
+    await addDoc(collection(db, "notifications"), {
+      userId: adminDoc.id,
+      type: "new_product_pending",
+      title: "Nuevo producto para revisar",
+      message: `${user.name} ha publicado "${newProduct.title}" para revisión.`,
+      productId: productRef.id,
+      productImage: newProduct.images[0],
+      read: false,
+      createdAt: Timestamp.now()
     });
-  };
+  });
+
+  // ✅ Cerrar el modal
+  setIsModalOpen(false);
+  
+  // ✅ Resetear el formulario
+  setNewProduct({
+    title: "",
+    description: "",
+    price: "",
+    size: "M",
+    shoeSize: "",
+    images: [],
+    condition: "Ropa usada",
+    category: "remeras",
+    gender: "Femenino",
+    ageGroup: "Adulto",
+    cuotas: "",
+    whatsappNumber: "",
+    shoulderToShoulder: "",
+    armpitToArmpit: "",
+    length: "",
+    waist: "",
+    hip: "",
+    inseam: "",
+    outseam: ""
+  });
+
+  // ✅ Mostrar mensaje de éxito
+  alert("✅ ¡Producto enviado para revisión! Recibirás una notificación cuando sea aprobado.");
+};
 
   const handlePublishProduct = async (productId) => {
     const productRef = doc(db, "products", productId);
