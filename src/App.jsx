@@ -3642,89 +3642,87 @@ export default function App() {
                 ))}
               </div>
             </div>
+{/* --- Sección de Chats con Usuarios (Admin) --- */}
+<div className="mt-12">
+  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+    <MessageCircle size={18} /> Chats con Usuarios
+  </h3>
+  
+  {/* Buscador de usuarios */}
+  <div className="mb-6">
+    <div className="relative">
+      <input
+        type="text"
+        placeholder="Buscar usuario por nombre o email..."
+        className="w-full bg-slate-50 border rounded-2xl py-4 px-12 outline-none focus:ring-1 focus:ring-[#d4af37]"
+        value={searchUserTerm}
+        onChange={(e) => setSearchUserTerm(e.target.value)}
+      />
+      <Search className="absolute left-4 top-4 text-slate-400" size={20} />
+    </div>
+  </div>
 
-            {/* --- Sección de Chats con Usuarios (Admin) --- */}
-            <div className="mt-12">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <MessageCircle size={18} /> Chats con Usuarios
-              </h3>
-              
-              {/* Buscador de usuarios */}
-              <div className="mb-6">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Buscar usuario por nombre o email..."
-                    className="w-full bg-slate-50 border rounded-2xl py-4 px-12 outline-none focus:ring-1 focus:ring-[#d4af37]"
-                    value={searchUserTerm}
-                    onChange={(e) => setSearchUserTerm(e.target.value)}
-                  />
-                  <Search className="absolute left-4 top-4 text-slate-400" size={20} />
-                </div>
+  {/* Lista de usuarios - VERSIÓN CORREGIDA */}
+  <div className="space-y-3 max-h-96 overflow-y-auto">
+    {Object.values(users)
+      .filter(u => u.uid !== user?.uid)
+      .filter(u => 
+        u.name?.toLowerCase().includes(searchUserTerm.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchUserTerm.toLowerCase())
+      )
+      .map(userItem => {
+        const existingChat = chats.find(chat => 
+          chat.participants.includes(user.uid) && 
+          chat.participants.includes(userItem.uid) &&
+          chat.type === 'direct_message'
+        );
+        
+        const unreadCount = existingChat?.unreadCount?.[user.uid] || 0;
+        
+        return (
+          <div
+            key={userItem.uid}
+            className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all"
+          >
+            <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleAdminStartDirectChat(userItem)}>
+              <div className="relative">
+                <img
+                  src={userItem.avatar}
+                  alt={userItem.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[8px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
               </div>
-
-              {/* Lista de usuarios */}
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {Object.values(users)
-                  .filter(u => u.uid !== user?.uid) // Excluir al admin actual
-                  .filter(u => 
-                    u.name?.toLowerCase().includes(searchUserTerm.toLowerCase()) ||
-                    u.email?.toLowerCase().includes(searchUserTerm.toLowerCase())
-                  )
-                  .map(userItem => {
-                    const existingChat = chats.find(chat => 
-                      chat.participants.includes(user.uid) && 
-                      chat.participants.includes(userItem.uid) &&
-                      chat.type === 'direct_message'
-                    );
-                    
-                    const unreadCount = existingChat?.unreadCount?.[user.uid] || 0;
-                    
-                    return (
-                      <div
-                        key={userItem.uid}
-                        className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all cursor-pointer"
-                        onClick={() => handleAdminStartDirectChat(userItem)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <img
-                              src={userItem.avatar}
-                              alt={userItem.name}
-                              className="w-12 h-12 rounded-full object-cover"
-                            />
-                            {unreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[8px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                                {unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="font-bold">{userItem.name}</h4>
-                            <p className="text-xs text-slate-500">{userItem.email}</p>
-                            {existingChat && (
-                              <p className="text-[8px] text-slate-400 mt-1">
-                                Último mensaje: {existingChat.lastMessage?.substring(0, 30)}...
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAdminStartDirectChat(userItem);
-                          }}
-                          className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#d4af37] transition-all"
-                        >
-                          <MessageCircle size={14} />
-                          {existingChat ? 'Continuar chat' : 'Iniciar chat'}
-                        </button>
-                      </div>
-                    );
-                  })}
+              <div>
+                <h4 className="font-bold">{userItem.name}</h4>
+                <p className="text-xs text-slate-500">{userItem.email}</p>
+                {existingChat && (
+                  <p className="text-[8px] text-slate-400 mt-1">
+                    Último mensaje: {existingChat.lastMessage?.substring(0, 30)}...
+                  </p>
+                )}
               </div>
             </div>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAdminStartDirectChat(userItem);
+              }}
+              className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#d4af37] transition-all ml-2"
+            >
+              <MessageCircle size={14} />
+              {existingChat ? 'Continuar chat' : 'Iniciar chat'}
+            </button>
+          </div>
+        );
+      })}
+  </div>
+</div>
           </div>
         </div>
       )}
