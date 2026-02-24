@@ -4659,6 +4659,19 @@ export default function App() {
               </div>
             )}
           </div>
+          {/* 🚨 BOTÓN DE PRUEBA - Transferencia Directa 🚨 */}
+<button
+  onClick={() => {
+    console.log("🔵 HACIENDO CLIC EN BOTÓN DE PRUEBA");
+    console.log("🔵 Estado actual isReceiptModalOpen:", isReceiptModalOpen);
+    setIsReceiptModalOpen(true);
+    console.log("🔵 Nuevo estado isReceiptModalOpen:", true);
+  }}
+  className="fixed bottom-32 right-4 bg-purple-600 text-white px-6 py-3 rounded-full z-[10000] shadow-2xl font-bold animate-pulse"
+  style={{ position: 'fixed', zIndex: 10000 }}
+>
+  🧪 PROBAR TRANSFERENCIA AHORA
+</button>
         </div>
       )}
 
