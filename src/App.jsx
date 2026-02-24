@@ -4536,30 +4536,31 @@ export default function App() {
       )}
 
       {/* --- Modal de Carga de Comprobante (Transferencia) con datos actualizados --- */}
-      {isReceiptModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsReceiptModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Datos para transferencia</h3>
-              <button onClick={() => setIsReceiptModalOpen(false)}><X size={24} /></button>
-            </div>
+      {/* --- Modal de Carga de Comprobante (Transferencia) con datos actualizados --- */}
+{isReceiptModalOpen && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsReceiptModalOpen(false)}></div>
+    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-bold">Datos para transferencia</h3>
+        <button onClick={() => setIsReceiptModalOpen(false)}><X size={24} /></button>
+      </div>
 
-            <div className="bg-slate-50 p-6 rounded-2xl mb-6">
-              <p className="text-sm font-bold mb-4">💰 Beneficio: 5% OFF</p>
-              <p className="text-xs mb-1"><span className="font-bold">Alias:</span> show.masroma</p>
-              <p className="text-xs mb-1"><span className="font-bold">CBU:</span> 4530000800015997551907</p>
-              <p className="text-xs mb-1"><span className="font-bold">Caja de ahorro en pesos:</span> 1599755190</p>
-              <p className="text-xs mb-1"><span className="font-bold">Titular:</span> Romina Mariela Arena</p>
-              <p className="text-xs mb-1"><span className="font-bold">CUIL:</span> 27344003799</p>
-              <p className="text-xs"><span className="font-bold">Banco:</span> Naranja X</p>
-              
-              <div className="mt-4 p-3 bg-yellow-100 rounded-xl">
-                <p className="text-xs font-bold text-yellow-800">Total con descuento:</p>
-                <p className="text-2xl font-black text-green-600">${cartTotalWithDiscount.toLocaleString()}</p>
-                <p className="text-[8px] text-slate-500">(Ahorrás ${(cartTotal * 0.05).toLocaleString()})</p>
-              </div>
-            </div>
+      <div className="bg-slate-50 p-6 rounded-2xl mb-6">
+        <p className="text-sm font-bold mb-4">💰 Beneficio: 5% OFF</p>
+        <p className="text-xs mb-1"><span className="font-bold">Alias:</span> show.masroma</p>
+        <p className="text-xs mb-1"><span className="font-bold">CBU:</span> 4530000800015997551907</p>
+        <p className="text-xs mb-1"><span className="font-bold">Caja de ahorro en pesos:</span> 1599755190</p>
+        <p className="text-xs mb-1"><span className="font-bold">Titular:</span> Romina Mariela Arena</p>
+        <p className="text-xs mb-1"><span className="font-bold">CUIL:</span> 27344003799</p>
+        <p className="text-xs"><span className="font-bold">Banco:</span> Naranja X</p>
+        
+        <div className="mt-4 p-3 bg-yellow-100 rounded-xl">
+          <p className="text-xs font-bold text-yellow-800">Total con descuento:</p>
+          <p className="text-2xl font-black text-green-600">${cartTotalWithDiscount.toLocaleString()}</p>
+          <p className="text-[8px] text-slate-500">(Ahorrás ${(cartTotal * 0.05).toLocaleString()})</p>
+        </div>
+      </div>
 
             <div className="space-y-4">
               <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center">
