@@ -4487,53 +4487,59 @@ export default function App() {
       )}
 
       {/* --- Modal de Métodos de Pago --- */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Elegí cómo pagar</h3>
-              <button onClick={() => setIsPaymentModalOpen(false)}><X size={24} /></button>
+      {/* --- Modal de Métodos de Pago --- */}
+{isPaymentModalOpen && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)}></div>
+    <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-bold">Elegí cómo pagar</h3>
+        <button onClick={() => setIsPaymentModalOpen(false)}><X size={24} /></button>
+      </div>
+
+      <div className="space-y-4">
+        {/* Botón MercadoPago */}
+        <button
+          onClick={() => {
+            setSelectedPaymentMethod('mercadopago');
+            handlePayment();
+          }}
+          className="w-full bg-blue-600 text-white p-6 rounded-2xl font-bold text-lg flex items-center justify-between hover:bg-blue-700 transition-all"
+        >
+          <span>MercadoPago</span>
+          <CreditCard size={24} />
+        </button>
+
+        {/* Botón Transferencia - VERSIÓN CORREGIDA */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              console.log("💰 Click en Transferencia Bancaria");
+              setSelectedPaymentMethod('transferencia');
+              // ESTAS DOS LÍNEAS SON LA CLAVE:
+              setIsPaymentModalOpen(false);  // Cierra modal de métodos de pago
+              setIsReceiptModalOpen(true);    // Abre modal de transferencia
+            }}
+            className="w-full bg-green-600 text-white p-6 rounded-2xl font-bold text-lg flex items-center justify-between hover:bg-green-700 transition-all"
+          >
+            <div className="text-left">
+              <span>Transferencia Bancaria</span>
+              <p className="text-xs opacity-90 mt-1">5% OFF - Ahorrá ${(cartTotal * 0.05).toLocaleString()}</p>
             </div>
-
-            <div className="space-y-4">
-              <button
-                onClick={() => {
-                  setSelectedPaymentMethod('mercadopago');
-                  handlePayment();
-                }}
-                className="w-full bg-blue-600 text-white p-6 rounded-2xl font-bold text-lg flex items-center justify-between hover:bg-blue-700 transition-all"
-              >
-                <span>MercadoPago</span>
-                <CreditCard size={24} />
-              </button>
-
-              <div className="relative">
-                <button
-                  onClick={() => setSelectedPaymentMethod('transferencia')}
-                  className="w-full bg-green-600 text-white p-6 rounded-2xl font-bold text-lg flex items-center justify-between hover:bg-green-700 transition-all"
-                >
-                  <div className="text-left">
-                    <span>Transferencia Bancaria</span>
-                    <p className="text-xs opacity-90 mt-1">5% OFF - Ahorrá ${(cartTotal * 0.05).toLocaleString()}</p>
-                  </div>
-                  <DollarSign size={24} />
-                </button>
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-bold px-2 py-1 rounded-full animate-pulse">
-                  5% OFF
-                </span>
-              </div>
-            </div>
-
-            <p className="text-center text-xs text-slate-500 mt-6">
-              Total a pagar: <span className="font-bold">${cartTotal.toLocaleString()}</span>
-              {selectedPaymentMethod === 'transferencia' && (
-                <span className="text-green-600 block">Con descuento: ${cartTotalWithDiscount.toLocaleString()}</span>
-              )}
-            </p>
-          </div>
+            <DollarSign size={24} />
+          </button>
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-bold px-2 py-1 rounded-full animate-pulse">
+            5% OFF
+          </span>
         </div>
-      )}
+      </div>
+
+      <p className="text-center text-xs text-slate-500 mt-6">
+        Total a pagar: <span className="font-bold">${cartTotal.toLocaleString()}</span>
+      </p>
+    </div>
+  </div>
+)}
 
       {/* --- Modal de Carga de Comprobante (Transferencia) con datos actualizados --- */}
       {/* --- Modal de Carga de Comprobante (Transferencia) con datos actualizados --- */}
