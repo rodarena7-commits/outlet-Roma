@@ -1,4 +1,4 @@
-const CACHE_NAME = 'roma-showroom-v1';
+const CACHE_NAME = 'roma-showroom-v2';
 const API_CACHE_NAME = 'roma-api-v1';
 const STATIC_CACHE_NAME = 'roma-static-v1';
 
@@ -58,48 +58,27 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Estrategia: Network First, fallback a cache
+// Estrategia de fetch CORREGIDA
 self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
   
-  // Ignorar peticiones a Firebase y otros dominios externos
-  if (!event.request.url.startsWith(self.location.origin) && 
-      !event.request.url.includes('firebaseio.com') && 
-      !event.request.url.includes('googleapis.com') && 
-      !event.request.url.includes('unsplash.com')) {
-    return;
+  // 🚫 IGNORAR TODAS las peticiones POST (Firebase, etc.)
+  if (event.request.method !== 'GET') {
+    return; // No interceptar peticiones POST
   }
   
-  // Estrategia para APIs de Firebase (datos dinámicos)
-  if (event.request.url.includes('firebase') || 
-      event.request.url.includes('googleapis')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Clonar la respuesta para cachearla
-          const responseClone = response.clone();
-          caches.open(API_CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          // Si falla la red, intentar con cache
-          return caches.match(event.request).then(cachedResponse => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // Si no hay cache, devolver un error amigable
-            return new Response(JSON.stringify({ 
-              error: 'Sin conexión', 
-              offline: true 
-            }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          });
-        })
-    );
+  // 🚫 Ignorar peticiones a Firebase y Google APIs
+  if (event.request.url.includes('firestore.googleapis.com') || 
+      event.request.url.includes('firebaseio.com') || 
+      event.request.url.includes('googleapis.com') ||
+      event.request.url.includes('identitytoolkit.googleapis.com') ||
+      event.request.url.includes('securetoken.googleapis.com')) {
+    return; // Dejar que el navegador maneje estas peticiones
+  }
+  
+  // Ignorar peticiones a dominios externos (excepto Unsplash para imágenes)
+  if (!event.request.url.startsWith(self.location.origin) && 
+      !event.request.url.includes('unsplash.com')) {
     return;
   }
   
@@ -138,36 +117,41 @@ self.addEventListener('fetch', event => {
     return;
   }
   
-  // Para todo lo demás (incluyendo la app) - Network First
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Si la respuesta es válida, cachearla
-        if (response && response.status === 200) {
+  // Para navegación (HTML) - Network First con fallback a cache
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, responseClone);
           });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Si falla la red, buscar en cache
-        return caches.match(event.request).then(cachedResponse => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Si es una navegación, devolver la página principal
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-          return new Response('Sin conexión', {
-            status: 503,
-            statusText: 'Service Unavailable'
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then(cachedResponse => {
+            return cachedResponse || caches.match('/');
           });
+        })
+    );
+    return;
+  }
+  
+  // Para imágenes locales - Cache First
+  if (event.request.destination === 'image') {
+    event.respondWith(
+      caches.match(event.request).then(cachedResponse => {
+        return cachedResponse || fetch(event.request).then(response => {
+          const responseClone = response.clone();
+          caches.open(STATIC_CACHE_NAME).then(cache => {
+            cache.put(event.request, responseClone);
+          });
+          return response;
         });
       })
-  );
+    );
+    return;
+  }
 });
 
 // Sincronización en segundo plano (para cuando vuelva la conexión)
@@ -177,10 +161,10 @@ self.addEventListener('sync', event => {
   }
 });
 
-// Push notifications (preparado para futuro)
+// Push notifications
 self.addEventListener('push', event => {
   const options = {
-    body: event.data.text(),
+    body: event.data?.text() || 'Nueva notificación de +Roma',
     icon: '/icon.png',
     badge: '/icon.png',
     vibrate: [200, 100, 200],
@@ -211,7 +195,6 @@ async function syncQuestions() {
     
     if (pendingQuestions) {
       const questions = await pendingQuestions.json();
-      // Aquí se enviarían las preguntas pendientes
       console.log('Sincronizando preguntas:', questions);
       await cache.delete('/pending-questions');
     }
