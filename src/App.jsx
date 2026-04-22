@@ -1340,7 +1340,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
       // Marcar productos como vendidos
       for (let i = 0; i < cart.length; i++) {
         const item = cart[i];
-        await handleMarkAsSold(item.id, user.uid, 'transferencia');
+        await handleMarkAsSold(item.id, user.uid, 'transferencia', compressedReceipt);
       }
 
       setCart([]);
