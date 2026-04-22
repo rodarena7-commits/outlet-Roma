@@ -1230,16 +1230,17 @@ export default function App() {
     await updateDoc(productRef, updateData);
   };
 
-  const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago') => {
+const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago', receiptImageUrl = null) => {
     if (window.confirm("¿Marcar esta prenda como vendida?")) {
       const productRef = doc(db, "products", productId);
       const product = [...products, ...pendingProducts].find(p => p.id === productId);
       
       await updateDoc(productRef, {
-        sold: true,
-        buyerId: buyerId,
-        soldAt: Timestamp.now(),
-        paymentMethod: paymentMethod
+    sold: true,
+    buyerId: buyerId,
+    soldAt: Timestamp.now(),
+    paymentMethod: paymentMethod,
+    receipt: receiptImageUrl || null   // <--- Nuevo campo
       });
 
       // Actualizar total ganado del vendedor
