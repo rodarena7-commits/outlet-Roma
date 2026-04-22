@@ -3077,6 +3077,19 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     </div>
                   )}
 
+                        {selectedProduct.receipt && (
+                    <div className="mb-4">
+                      <h4 className="font-bold text-sm mb-2">Comprobante de pago</h4>
+                      <img 
+                        src={selectedProduct.receipt} 
+                        alt="Comprobante" 
+                        className="max-w-full max-h-48 rounded-lg cursor-pointer border"
+                        onClick={() => window.open(selectedProduct.receipt, '_blank')}
+                      />
+                    </div>
+                  )}
+
+                  
                   <div className="flex items-center gap-4 mb-6">
                     <div className="flex items-center gap-2">
                       <ThumbsUp size={20} className="text-[#d4af37]" />
