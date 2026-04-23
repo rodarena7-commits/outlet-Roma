@@ -2725,7 +2725,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8">
             {/* Facebook */}
             <a
-              href="https://share.google/mIeYVBKmUj7xuzUbw"
+              href="https://www.facebook.com/share/189puUiSdc/?mibextid=wwXIfr"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-[#1877F2] transition-colors p-2"
