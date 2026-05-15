@@ -27,6 +27,7 @@ const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 // --- Configuración y Constantes ---
+const APP_ID = "outlet-roma"; // Identificador único de esta app (separa datos de otras apps en el mismo Firebase)
 const COMISION = 0.19; // 19% de comisión
 
 // Lista inicial de usuarios autorizados para publicar
@@ -628,20 +629,43 @@ export default function App() {
     }
   }, [categoryDiscounts, user]);
 
+  // Migración única: marcar productos sin appId como "outlet-roma"
+  // (corrige productos creados antes de implementar la separación por app)
+  useEffect(() => {
+    async function migrateProducts() {
+      try {
+        const snap = await getDocs(collection(db, "products"));
+        const updates = [];
+        snap.forEach(d => {
+          if (!d.data().appId) {
+            updates.push(updateDoc(doc(db, "products", d.id), { appId: APP_ID }));
+          }
+        });
+        if (updates.length > 0) {
+          await Promise.all(updates);
+          console.log(`Migración: ${updates.length} productos marcados como ${APP_ID}`);
+        }
+      } catch (e) {
+        console.warn("Migración omitida (sin permisos):", e.message);
+      }
+    }
+    migrateProducts();
+  }, []);
+
   // Cargar datos desde Firestore
   useEffect(() => {
-    // Productos publicados (incluyendo vendidos)
+    // Productos publicados (solo los de outlet-roma)
     const publishedUnsubscribe = onSnapshot(
-      query(collection(db, "products"), where("status.publicada", "==", true)),
+      query(collection(db, "products"), where("appId", "==", APP_ID), where("status.publicada", "==", true)),
       (snapshot) => {
         const productsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsList);
       }
     );
 
-    // Productos pendientes
+    // Productos pendientes (solo los de outlet-roma)
     const pendingUnsubscribe = onSnapshot(
-      query(collection(db, "products"), where("status.publicada", "==", false)),
+      query(collection(db, "products"), where("appId", "==", APP_ID), where("status.publicada", "==", false)),
       (snapshot) => {
         const pendingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPendingProducts(pendingList);
@@ -1035,6 +1059,7 @@ export default function App() {
         aprobada: false,
         publicada: false
       },
+      appId: APP_ID,
       createdAt: Timestamp.now()
     };
 
