@@ -474,6 +474,7 @@ export default function App() {
   const [messagesEndRef, setMessagesEndRef] = useState(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const fileInputRef = useRef(null);
+  const catScrollRef = useRef(null);
   
   // Estados para búsqueda de usuarios en admin panel
   const [searchUserTerm, setSearchUserTerm] = useState("");
@@ -2503,23 +2504,52 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
 
       {/* --- Categorías con imágenes personalizadas --- */}
       <section className="container mx-auto px-4 py-10">
-        <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6">
-          {CATEGORIES.map(cat => (
-            <div
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
-              className={"group flex-shrink-0 cursor-pointer flex flex-col items-center transition-all " +
-                (selectedCategory === cat.id ? 'scale-105' : 'opacity-70 hover:opacity-100')}
-            >
-              <div className={"relative w-20 h-20 md:w-28 md:h-28 rounded-3xl overflow-hidden border-2 transition-all " +
-                (selectedCategory === cat.id ? 'border-[#d4af37] shadow-xl' : 'border-transparent shadow-sm')}>
-                <img src={cat.image} alt={cat.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                <div className="absolute inset-0 bg-black/5"></div>
+        <div className="relative">
+          {/* Flecha izquierda — solo desktop */}
+          <button
+            onClick={() => catScrollRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
+            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-9 h-9 bg-white rounded-full shadow-lg border border-slate-100 items-center justify-center hover:shadow-xl transition-all"
+          >
+            <ChevronLeft size={18} className="text-slate-600" />
+          </button>
+
+          {/* Gradiente izquierdo */}
+          <div className="absolute left-0 top-0 bottom-6 w-8 bg-gradient-to-r from-white to-transparent z-[1] pointer-events-none hidden md:block" />
+
+          {/* Lista deslizable */}
+          <div
+            ref={catScrollRef}
+            className="flex gap-6 overflow-x-auto no-scrollbar pb-6 scroll-smooth"
+            style={{ touchAction: 'pan-x' }}
+          >
+            {CATEGORIES.map(cat => (
+              <div
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+                className={"group flex-shrink-0 cursor-pointer flex flex-col items-center transition-all " +
+                  (selectedCategory === cat.id ? 'scale-105' : 'opacity-70 hover:opacity-100')}
+              >
+                <div className={"relative w-20 h-20 md:w-28 md:h-28 rounded-3xl overflow-hidden border-2 transition-all " +
+                  (selectedCategory === cat.id ? 'border-[#d4af37] shadow-xl' : 'border-transparent shadow-sm')}>
+                  <img src={cat.image} alt={cat.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-black/5"></div>
+                </div>
+                <span className={"mt-3 text-[10px] font-black uppercase tracking-[0.2em] " +
+                  (selectedCategory === cat.id ? 'text-[#d4af37]' : 'text-slate-500')}>{cat.name}</span>
               </div>
-              <span className={"mt-3 text-[10px] font-black uppercase tracking-[0.2em] " +
-                (selectedCategory === cat.id ? 'text-[#d4af37]' : 'text-slate-500')}>{cat.name}</span>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Gradiente derecho */}
+          <div className="absolute right-0 top-0 bottom-6 w-8 bg-gradient-to-l from-white to-transparent z-[1] pointer-events-none hidden md:block" />
+
+          {/* Flecha derecha — solo desktop */}
+          <button
+            onClick={() => catScrollRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-9 h-9 bg-white rounded-full shadow-lg border border-slate-100 items-center justify-center hover:shadow-xl transition-all"
+          >
+            <ChevronRightIcon size={18} className="text-slate-600" />
+          </button>
         </div>
       </section>
 
