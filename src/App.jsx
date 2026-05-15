@@ -475,6 +475,7 @@ export default function App() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const fileInputRef = useRef(null);
   const catScrollRef = useRef(null);
+  const [lightbox, setLightbox] = useState(null); // URL de la imagen en pantalla completa
   
   // Estados para búsqueda de usuarios en admin panel
   const [searchUserTerm, setSearchUserTerm] = useState("");
@@ -2676,8 +2677,9 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                 <div className="relative aspect-[4/5] overflow-hidden bg-slate-50">
                   <img
                     src={product.images ? product.images[0] : product.image}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 cursor-zoom-in"
                     alt={product.title}
+                    onClick={e => { e.stopPropagation(); setLightbox(product.images ? product.images[0] : product.image); }}
                   />
                   {product.sold && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -2942,7 +2944,8 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     <img
                       src={selectedProduct.images ? selectedProduct.images[currentImageIndex] : selectedProduct.image}
                       alt={selectedProduct.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => setLightbox(selectedProduct.images ? selectedProduct.images[currentImageIndex] : selectedProduct.image)}
                     />
                     {selectedProduct.sold && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -5527,6 +5530,32 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
           height: 4.5rem;
         }
       `}</style>
+
+      {/* ── LIGHTBOX pantalla completa ── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          {/* Botón cerrar */}
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all"
+          >
+            <X size={22} className="text-white" />
+          </button>
+
+          {/* Imagen */}
+          <img
+            src={lightbox}
+            alt="Vista completa"
+            className="max-w-full max-h-full object-contain select-none"
+            style={{ maxHeight: '95vh', maxWidth: '95vw' }}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+
     </div>
   );
 }
