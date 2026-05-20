@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, ShoppingBag, User, Heart, PlusCircle, X, Camera, ChevronRight, Trash2, ArrowRight, Tag, Check, Edit3, Lock, CheckCircle, Clock, AlertCircle, LogOut, Settings, Image as ImageIcon, Users, ThumbsUp, UserPlus, UserCheck, ChevronLeft, ChevronRight as ChevronRightIcon, Info, Download, MessageCircle, Send, DollarSign, Crop, Move, Maximize2, Minimize2, Ban, MessageSquare, Bell, Phone, CreditCard, Upload, ZoomIn, FileText, HelpCircle, Smartphone, Paperclip, GripVertical, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react';
+import { Search, ShoppingBag, User, Heart, PlusCircle, X, Camera, ChevronRight, Trash2, ArrowRight, Tag, Check, Edit3, Lock, CheckCircle, Clock, AlertCircle, LogOut, Settings, Image as ImageIcon, Users, ThumbsUp, UserPlus, UserCheck, ChevronLeft, ChevronRight as ChevronRightIcon, Info, Download, MessageCircle, Send, DollarSign, Crop, Move, Maximize2, Minimize2, Ban, MessageSquare, Bell, Phone, CreditCard, Upload, ZoomIn, FileText, HelpCircle, Smartphone, Paperclip, GripVertical, ToggleLeft, ToggleRight, RefreshCw, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, Timestamp, setDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import Cropper from 'react-easy-crop';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -35,13 +35,15 @@ const INITIAL_AUTHORIZED_SELLERS = [
   "rodrigo.n.arena@hotmail.com",
   "outlet.masroma@gmail.com",
   "feria.masroma@gmail.com",
+  "feria.masamor@gmail.com",
   "romina.arena89@gmail.com"
 ];
 
 // Lista de administradores principales (pueden gestionar vendedores)
 const MAIN_ADMINS = [
   "rodrigo.n.arena@hotmail.com",
-  "outlet.masroma@gmail.com"
+  "outlet.masroma@gmail.com",
+  "feria.masamor@gmail.com"
 ];
 
 const CATEGORIES = [
@@ -860,13 +862,73 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  const [isLoginModalOpen, setIsLoginModalOpen]   = useState(false);
+  const [loginMode,        setLoginMode]           = useState('login'); // 'login' | 'register'
+  const [loginEmail,       setLoginEmail]          = useState('');
+  const [loginPassword,    setLoginPassword]       = useState('');
+  const [loginName,        setLoginName]           = useState('');
+  const [loginError,       setLoginError]          = useState('');
+  const [loginLoading,     setLoginLoading]        = useState(false);
+  const [showLoginPass,    setShowLoginPass]       = useState(false);
+
+  const LOGIN_ERRORS = {
+    'auth/email-already-in-use':   'Ese email ya está registrado. Iniciá sesión.',
+    'auth/invalid-email':          'Email inválido.',
+    'auth/weak-password':          'La contraseña debe tener al menos 6 caracteres.',
+    'auth/user-not-found':         'No existe una cuenta con ese email.',
+    'auth/wrong-password':         'Contraseña incorrecta.',
+    'auth/invalid-credential':     'Email o contraseña incorrectos.',
+    'auth/too-many-requests':      'Demasiados intentos. Esperá unos minutos.',
+    'auth/network-request-failed': 'Sin conexión. Verificá tu internet.',
+  };
+
+  function openLoginModal() {
+    setLoginMode('login');
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginName('');
+    setLoginError('');
+    setShowLoginPass(false);
+    setIsLoginModalOpen(true);
+  }
+
   const handleGoogleLogin = async () => {
+    setLoginLoading(true);
     try {
       await signInWithPopup(auth, googleProvider);
+      setIsLoginModalOpen(false);
     } catch (error) {
       console.error("Error al iniciar sesión con Google:", error);
-      alert("Error al iniciar sesión. Por favor, intenta de nuevo.");
+      setLoginError('No se pudo iniciar sesión con Google. Intentá de nuevo.');
     }
+    setLoginLoading(false);
+  };
+
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setLoginLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      setIsLoginModalOpen(false);
+    } catch (err) {
+      setLoginError(LOGIN_ERRORS[err.code] || 'Ocurrió un error. Intentá de nuevo.');
+    }
+    setLoginLoading(false);
+  };
+
+  const handleEmailRegister = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setLoginLoading(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      await updateProfile(cred.user, { displayName: loginName.trim() });
+      setIsLoginModalOpen(false);
+    } catch (err) {
+      setLoginError(LOGIN_ERRORS[err.code] || 'Ocurrió un error. Intentá de nuevo.');
+    }
+    setLoginLoading(false);
   };
 
   const handleLogout = async () => {
@@ -936,7 +998,8 @@ export default function App() {
 
   const handleCropConfirm = async () => {
     try {
-      const croppedImage = await getCroppedImg(cropImage, croppedAreaPixels);
+      const maxSize = cropType === 'avatar' ? 400 : 1000;
+      const croppedImage = await getCroppedImg(cropImage, croppedAreaPixels, maxSize, 0.75);
       if (cropType === 'avatar') {
         setProfileData(prev => ({ ...prev, avatar: croppedImage }));
       } else if (cropType === 'cover') {
@@ -949,27 +1012,21 @@ export default function App() {
     }
   };
 
-  const getCroppedImg = (imageSrc, pixelCrop) => {
+  const getCroppedImg = (imageSrc, pixelCrop, maxSize = 900, quality = 0.75) => {
     const image = new Image();
     image.src = imageSrc;
     return new Promise((resolve) => {
       image.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-        ctx.drawImage(
-          image,
-          pixelCrop.x,
-          pixelCrop.y,
-          pixelCrop.width,
-          pixelCrop.height,
-          0,
-          0,
-          pixelCrop.width,
-          pixelCrop.height
-        );
-        resolve(canvas.toDataURL('image/jpeg'));
+        let w = pixelCrop.width;
+        let h = pixelCrop.height;
+        if (w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize; }
+        if (h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize; }
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
     });
   };
@@ -2466,7 +2523,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
               </div>
             ) : (
               <button
-                onClick={handleGoogleLogin}
+                onClick={openLoginModal}
                 className="bg-[#d4af37] text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-black transition-all flex items-center gap-2"
               >
                 <User size={14} />
@@ -2761,6 +2818,15 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                         <span className="font-bold text-emerald-600">{"$" + (product.price - product.price * COMISION).toLocaleString()}</span>
                         <span className="text-[6px] md:text-[8px] ml-1">(19% comisión)</span>
                       </div>
+                    )}
+
+                    {user?.isAdmin && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteProduct(product.id); }}
+                        className="mt-2 w-full flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all text-[8px] md:text-[10px] font-bold uppercase tracking-widest border border-red-100"
+                      >
+                        <Trash2 size={10} /> Eliminar
+                      </button>
                     )}
                   </div>
                 </div>
@@ -3176,6 +3242,16 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     <div className="w-full bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold uppercase text-sm tracking-widest flex items-center justify-center gap-2 mb-6">
                       <Info size={18} /> Este es tu producto
                     </div>
+                  )}
+
+                  {/* Botón eliminar para admins */}
+                  {user?.isAdmin && (
+                    <button
+                      onClick={() => { handleDeleteProduct(selectedProduct.id); setSelectedProduct(null); }}
+                      className="w-full flex items-center justify-center gap-2 py-3 mb-6 rounded-2xl bg-red-50 border border-red-200 text-red-600 font-bold text-sm hover:bg-red-100 transition-all"
+                    >
+                      <Trash2 size={16} /> Eliminar publicación
+                    </button>
                   )}
 
                   {/* Sección de Preguntas */}
@@ -5477,7 +5553,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                 setSelectedTab('chats');
               }, 200);
             } else {
-              handleGoogleLogin();
+              openLoginModal();
             }
           }}
         >
@@ -5496,13 +5572,121 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
             if (user) {
               setSelectedUserProfile(user.uid);
             } else {
-              handleGoogleLogin();
+              openLoginModal();
             }
           }}
         >
           <User size={22} />
         </button>
       </nav>
+
+      {/* --- Modal de Login --- */}
+      {isLoginModalOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsLoginModalOpen(false)} />
+          <div className="relative bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
+            <button onClick={() => setIsLoginModalOpen(false)} className="absolute top-5 right-5 p-2 hover:bg-slate-100 rounded-full">
+              <X size={20} />
+            </button>
+
+            {/* Logo / título */}
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-[#d4af37] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <ShoppingBag size={28} className="text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800">Outlet +Roma</h2>
+              <p className="text-sm text-slate-400 mt-1">Accedé a tu cuenta</p>
+            </div>
+
+            {/* Botón Google */}
+            <button
+              onClick={handleGoogleLogin}
+              disabled={loginLoading}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-3 font-semibold text-slate-700 shadow-sm hover:shadow-md hover:bg-slate-50 transition-all disabled:opacity-50 mb-4"
+            >
+              {loginLoading === true ? <Loader2 size={18} className="animate-spin" /> : (
+                <svg viewBox="0 0 24 24" className="w-5 h-5">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+              )}
+              Continuar con Google
+            </button>
+
+            {/* Separador */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400">o con email</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            {/* Toggle login / registro */}
+            <div className="flex bg-slate-100 rounded-2xl p-1 mb-4">
+              {['login', 'register'].map(m => (
+                <button key={m} onClick={() => { setLoginMode(m); setLoginError(''); }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${loginMode === m ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}>
+                  {m === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={loginMode === 'login' ? handleEmailLogin : handleEmailRegister} className="space-y-3">
+              {loginMode === 'register' && (
+                <div className="relative">
+                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text" value={loginName} onChange={e => setLoginName(e.target.value)}
+                    placeholder="Tu nombre" required minLength={2}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#d4af37]"
+                  />
+                </div>
+              )}
+
+              <div className="relative">
+                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                  placeholder="Email" required
+                  className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#d4af37]"
+                />
+              </div>
+
+              <div className="relative">
+                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type={showLoginPass ? 'text' : 'password'}
+                  value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                  placeholder="Contraseña" required minLength={6}
+                  className="w-full pl-10 pr-10 py-3 bg-slate-100 rounded-2xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#d4af37]"
+                />
+                <button type="button" onClick={() => setShowLoginPass(v => !v)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showLoginPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+
+              {loginError && <p className="text-red-500 text-xs text-center">{loginError}</p>}
+
+              <button type="submit" disabled={loginLoading}
+                className="w-full py-3.5 bg-[#d4af37] text-white rounded-2xl font-bold text-sm shadow hover:bg-black transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {loginLoading
+                  ? <><Loader2 size={16} className="animate-spin" /> Cargando…</>
+                  : loginMode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'
+                }
+              </button>
+            </form>
+
+            <p className="text-center text-xs text-slate-400 mt-4">
+              {loginMode === 'login'
+                ? <>¿No tenés cuenta? <button onClick={() => { setLoginMode('register'); setLoginError(''); }} className="text-[#d4af37] font-semibold">Registrate</button></>
+                : <>¿Ya tenés cuenta? <button onClick={() => { setLoginMode('login'); setLoginError(''); }} className="text-[#d4af37] font-semibold">Iniciá sesión</button></>
+              }
+            </p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
