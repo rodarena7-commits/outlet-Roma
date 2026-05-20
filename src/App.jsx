@@ -778,12 +778,17 @@ export default function App() {
   // Cargar mensajes del chat seleccionado
   useEffect(() => {
     if (selectedChat) {
+      // Resetear badge de no leídos al abrir el chat
+      if (user && selectedChat.unreadCount?.[user.uid] > 0) {
+        updateDoc(doc(db, "chats", selectedChat.id), { [`unreadCount.${user.uid}`]: 0 });
+      }
+
       const messagesUnsubscribe = onSnapshot(
         query(collection(db, "messages", selectedChat.id, "chatMessages"), orderBy("timestamp", "asc")),
         (snapshot) => {
           const messagesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setMessages(prev => ({ ...prev, [selectedChat.id]: messagesList }));
-          
+
           // Marcar mensajes como leídos
           if (user) {
             messagesList.forEach(async (msg) => {
