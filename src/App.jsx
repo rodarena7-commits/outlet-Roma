@@ -508,7 +508,9 @@ export default function App() {
     vigencia: "",
     active: false,
     fechaFin: "",
-    textoAdicional: ""
+    textoAdicional: "",
+    bannerImage: "",
+    bannerImagePos: "side"
   });
   const [categoryDiscounts, setCategoryDiscounts] = useState({});
 
@@ -614,7 +616,9 @@ export default function App() {
         fechaFin: saleConfig.fechaFin,
         textoAdicional: saleConfig.textoAdicional,
         vigencia: saleConfig.vigencia,
-        title: saleConfig.title
+        title: saleConfig.title,
+        bannerImage: saleConfig.bannerImage,
+        bannerImagePos: saleConfig.bannerImagePos
       }, { merge: true });
     };
     if (user?.isAdmin) {
@@ -2199,10 +2203,29 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
       {saleConfig.active && (
         <div
           onClick={handleSaleBannerClick}
-          className="bg-red-600 text-white py-2 px-4 text-center cursor-pointer select-none transition-all hover:bg-red-700 active:scale-95"
+          className="relative text-white cursor-pointer select-none overflow-hidden"
+          style={
+            saleConfig.bannerImage && saleConfig.bannerImagePos === 'background'
+              ? { backgroundImage: `url(${saleConfig.bannerImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+              : { backgroundColor: '#dc2626' }
+          }
         >
-          <div className="container mx-auto flex flex-col md:flex-row items-center justify-center gap-2 md:gap-6">
-            <span className="font-black italic tracking-tighter text-lg">
+          {/* Overlay oscuro cuando hay imagen de fondo */}
+          {saleConfig.bannerImage && saleConfig.bannerImagePos === 'background' && (
+            <div className="absolute inset-0 bg-black/50" />
+          )}
+
+          <div className="relative container mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6">
+            {/* Imagen al lado del título */}
+            {saleConfig.bannerImage && saleConfig.bannerImagePos === 'side' && (
+              <img
+                src={saleConfig.bannerImage}
+                alt="Banner"
+                className="h-10 w-auto object-contain rounded-lg shadow"
+              />
+            )}
+
+            <span className="font-black italic tracking-tighter text-lg drop-shadow">
               {saleConfig.title}
             </span>
             {saleConfig.promo && (
@@ -4308,6 +4331,75 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     onChange={(e) => setSaleConfig({...saleConfig, vigencia: e.target.value})}
                     placeholder="Ej: Válido hasta el 28 de febrero"
                   />
+                </div>
+
+                {/* Imagen del Banner */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Imagen del Banner (opcional)</label>
+
+                  {/* Preview */}
+                  {saleConfig.bannerImage && (
+                    <div className="relative rounded-2xl overflow-hidden h-24 bg-slate-100">
+                      <img src={saleConfig.bannerImage} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setSaleConfig({ ...saleConfig, bannerImage: '' })}
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* URL */}
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="Pegar URL de imagen…"
+                      className="flex-1 bg-white border p-3 rounded-2xl text-sm outline-none focus:border-black"
+                      value={saleConfig.bannerImage && !saleConfig.bannerImage.startsWith('data:') ? saleConfig.bannerImage : ''}
+                      onChange={(e) => setSaleConfig({ ...saleConfig, bannerImage: e.target.value })}
+                    />
+                    <label className="bg-black text-white px-4 py-3 rounded-2xl text-xs font-bold uppercase cursor-pointer hover:bg-[#d4af37] transition-all whitespace-nowrap flex items-center gap-1">
+                      <Upload size={14} /> Subir
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          try {
+                            const compressed = await compressImage(file, 1200, 0.7);
+                            setSaleConfig({ ...saleConfig, bannerImage: compressed });
+                          } catch { console.error('Error comprimiendo imagen del banner'); }
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Posición */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-slate-400 mb-2 block">Posición de la imagen</label>
+                    <div className="flex gap-3">
+                      {[
+                        { val: 'side', label: 'Al lado del título' },
+                        { val: 'background', label: 'Como fondo' },
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          onClick={() => setSaleConfig({ ...saleConfig, bannerImagePos: opt.val })}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                            saleConfig.bannerImagePos === opt.val
+                              ? 'bg-black text-white border-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Descuentos por categoría */}
