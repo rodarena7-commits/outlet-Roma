@@ -1929,6 +1929,16 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     return total;
   };
 
+  const markAllChatsRead = async () => {
+    if (!user) return;
+    const unreadChats = getUserChats().filter(chat => chat.unreadCount?.[user.uid] > 0);
+    await Promise.all(
+      unreadChats.map(chat =>
+        updateDoc(doc(db, "chats", chat.id), { [`unreadCount.${user.uid}`]: 0 })
+      )
+    );
+  };
+
   const handleAdminStartChat = async (sellerId, productId) => {
     if (!user?.isAdmin) return;
 
@@ -2379,8 +2389,16 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
               )}
               {isChatsPanelOpen && user && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 max-h-96 overflow-y-auto">
-                  <div className="p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white sticky top-0">
+                  <div className="p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white sticky top-0 flex items-center justify-between">
                     <h3 className="font-bold">Chats recientes</h3>
+                    {getUnreadChatCount() > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); markAllChatsRead(); }}
+                        className="text-[10px] font-bold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all"
+                      >
+                        Marcar todas leídas
+                      </button>
+                    )}
                   </div>
                   <div className="divide-y">
                     {getUserChats().slice(0, 10).map(chat => {
