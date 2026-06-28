@@ -827,37 +827,68 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", firebaseUser.uid)));
-        
-        // Verificar si es un administrador principal
-        const isMainAdmin = MAIN_ADMINS.includes(firebaseUser.email);
-        
-        // Obtener directamente de Firestore para asegurar datos frescos
-        const authSnapshot = await getDocs(collection(db, "authorizedSellers"));
-        const emails = authSnapshot.docs.map(doc => doc.data().email);
-        const canPublishValue = isMainAdmin || emails.includes(firebaseUser.email);
-        
-        if (!userDoc.empty) {
-          const existingUser = userDoc.docs[0].data();
-          // Actualizar el usuario con el permiso correcto
-          const updatedUser = {
-            ...existingUser,
-            canPublish: canPublishValue,
-            isMainAdmin: isMainAdmin,
-            isAdmin: isMainAdmin || existingUser.isAdmin
-          };
-          setUser(updatedUser);
-          setProfileData({
-            name: existingUser.name,
-            bio: existingUser.bio || "",
-            avatar: existingUser.avatar || firebaseUser.photoURL,
-            coverImage: existingUser.coverImage || "",
-            whatsappNumber: existingUser.whatsappNumber || "",
-            totalEarned: existingUser.totalEarned || 0
-          });
-        } else {
-          const newUser = {
+        try {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", firebaseUser.uid)));
+          
+          // Verificar si es un administrador principal
+          const isMainAdmin = MAIN_ADMINS.includes(firebaseUser.email);
+          
+          // Obtener directamente de Firestore para asegurar datos frescos
+          const authSnapshot = await getDocs(collection(db, "authorizedSellers"));
+          const emails = authSnapshot.docs.map(doc => doc.data().email);
+          const canPublishValue = isMainAdmin || emails.includes(firebaseUser.email);
+          
+          if (!userDoc.empty) {
+            const existingUser = userDoc.docs[0].data();
+            // Actualizar el usuario con el permiso correcto
+            const updatedUser = {
+              ...existingUser,
+              canPublish: canPublishValue,
+              isMainAdmin: isMainAdmin,
+              isAdmin: isMainAdmin || existingUser.isAdmin
+            };
+            setUser(updatedUser);
+            setProfileData({
+              name: existingUser.name,
+              bio: existingUser.bio || "",
+              avatar: existingUser.avatar || firebaseUser.photoURL,
+              coverImage: existingUser.coverImage || "",
+              whatsappNumber: existingUser.whatsappNumber || "",
+              totalEarned: existingUser.totalEarned || 0
+            });
+          } else {
+            const newUser = {
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || "Usuario",
+              email: firebaseUser.email,
+              avatar: firebaseUser.photoURL || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + firebaseUser.uid,
+              followers: 0,
+              following: 0,
+              bio: "",
+              coverImage: "",
+              whatsappNumber: "",
+              totalEarned: 0,
+              isAdmin: isMainAdmin,
+              isMainAdmin: isMainAdmin,
+              canPublish: canPublishValue
+            };
+            await setDoc(doc(db, "users", firebaseUser.uid), newUser);
+            setUser(newUser);
+            setProfileData({
+              name: newUser.name,
+              bio: "",
+              avatar: newUser.avatar,
+              coverImage: "",
+              whatsappNumber: "",
+              totalEarned: 0
+            });
+          }
+        } catch (e) {
+          console.error("Error al obtener datos de usuario en Firestore:", e);
+          // Fallback: Permitir el inicio de sesión básico con los datos de Firebase Auth directamente si Firestore falla
+          const isMainAdmin = MAIN_ADMINS.includes(firebaseUser.email);
+          const basicUser = {
             uid: firebaseUser.uid,
             name: firebaseUser.displayName || "Usuario",
             email: firebaseUser.email,
@@ -870,14 +901,13 @@ export default function App() {
             totalEarned: 0,
             isAdmin: isMainAdmin,
             isMainAdmin: isMainAdmin,
-            canPublish: canPublishValue
+            canPublish: isMainAdmin
           };
-          await setDoc(doc(db, "users", firebaseUser.uid), newUser);
-          setUser(newUser);
+          setUser(basicUser);
           setProfileData({
-            name: newUser.name,
+            name: basicUser.name,
             bio: "",
-            avatar: newUser.avatar,
+            avatar: basicUser.avatar,
             coverImage: "",
             whatsappNumber: "",
             totalEarned: 0
@@ -3013,6 +3043,29 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
           </div>
         )}
       </main>
+
+      {/* --- Mapa de Ubicación --- */}
+      <section className="container mx-auto px-4 lg:px-8 mb-16">
+        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 max-w-4xl mx-auto">
+          <h2 className="text-2xl font-serif font-light text-center mb-2">¿Dónde estamos ubicados?</h2>
+          <p className="text-center text-xs text-slate-500 uppercase tracking-widest mb-6">
+            Av. Rivadavia 7055 Loc 52, C1406 Cdad. Autónoma de Buenos Aires
+          </p>
+          
+          <div className="aspect-[16/9] w-full rounded-2xl overflow-hidden border border-slate-100 shadow-inner">
+            <iframe 
+              src="https://maps.google.com/maps?q=Av.%20Rivadavia%207055%20Local%2052,%20C1406%20Cdad.%20Aut%C3%B3noma%20de%20Buenos%20Aires&t=&z=16&ie=UTF8&iwloc=&output=embed" 
+              width="100%" 
+              height="100%" 
+              style={{ border: 0 }} 
+              allowFullScreen="" 
+              loading="lazy" 
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Mapa de Ubicación"
+            ></iframe>
+          </div>
+        </div>
+      </section>
 
       {/* --- Footer con Redes Sociales --- */}
       <footer className="bg-white border-t border-slate-100 py-6 mt-8">
