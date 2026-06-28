@@ -520,6 +520,8 @@ export default function App() {
   const [selectedOutletFilter, setSelectedOutletFilter] = useState(null);
   const [selectedShowroomFilter, setSelectedShowroomFilter] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [adminSearchTerm, setAdminSearchTerm] = useState("");
+  const [productQuestions, setProductQuestions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedGender, setSelectedGender] = useState("Todo");
   const [selectedAge, setSelectedAge] = useState("Todo");
@@ -660,7 +662,7 @@ export default function App() {
     migrateProducts();
   }, []);
 
-  // Cargar datos desde Firestore
+  // 1. Cargar datos públicos desde Firestore (siempre activo, no requiere iniciar sesión)
   useEffect(() => {
     // Productos publicados (solo los de outlet-roma)
     const publishedUnsubscribe = onSnapshot(
@@ -671,22 +673,42 @@ export default function App() {
       }
     );
 
-    // Productos pendientes (solo los de outlet-roma)
-    const pendingUnsubscribe = onSnapshot(
-      query(collection(db, "products"), where("appId", "==", APP_ID), where("status.publicada", "==", false)),
-      (snapshot) => {
-        const pendingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPendingProducts(pendingList);
-      }
-    );
+    // Cargar usuarios autorizados (para validar registro/publicación)
+    const authorizedUnsubscribe = onSnapshot(collection(db, "authorizedSellers"), (snapshot) => {
+      const emails = snapshot.docs.map(doc => doc.data().email);
+      setAuthorizedSellers(emails);
+    });
 
-    // Cargar usuarios
-    const usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const usersMap = {};
-      snapshot.docs.forEach(doc => {
-        usersMap[doc.id] = { id: doc.id, ...doc.data() };
-      });
-      setUsers(usersMap);
+    return () => {
+      publishedUnsubscribe();
+      authorizedUnsubscribe();
+    };
+  }, []);
+
+  // 2. Cargar datos privados/personales desde Firestore (solo cuando el usuario inicia sesión)
+  useEffect(() => {
+    if (!user) {
+      // Limpiar datos del usuario anterior al cerrar sesión
+      setPendingProducts([]);
+      setFollowers({});
+      setFollowing({});
+      setQuestions([]);
+      setChats([]);
+      setNotifications([]);
+      setUnreadNotifications(0);
+      setReceipts([]);
+      return;
+    }
+
+    // Suscribirse a productos pendientes
+    // Si es administrador ve todos los pendientes, de lo contrario solo los propios
+    const pendingQuery = user.isAdmin
+      ? query(collection(db, "products"), where("appId", "==", APP_ID), where("status.publicada", "==", false))
+      : query(collection(db, "products"), where("appId", "==", APP_ID), where("status.publicada", "==", false), where("userId", "==", user.uid));
+    
+    const pendingUnsubscribe = onSnapshot(pendingQuery, (snapshot) => {
+      const pendingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPendingProducts(pendingList);
     });
 
     // Cargar seguidores
@@ -715,63 +737,60 @@ export default function App() {
       setFollowing(followingMap);
     });
 
-    // Cargar preguntas
+    // Cargar preguntas (para cuando se visitan perfiles)
     const questionsUnsubscribe = onSnapshot(
-      query(collection(db, "questions"), orderBy("createdAt", "desc")),
+      query(collection(db, "questions")),
       (snapshot) => {
         const questionsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        questionsList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setQuestions(questionsList);
       }
     );
 
-    // Cargar chats
+    // Cargar chats (solo chats donde participa el usuario actual)
     const chatsUnsubscribe = onSnapshot(
-      query(collection(db, "chats"), orderBy("lastMessageAt", "desc")),
+      query(collection(db, "chats"), where("participants", "array-contains", user.uid)),
       (snapshot) => {
         const chatsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Ordenar por lastMessageAt descendente en cliente
+        chatsList.sort((a, b) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0));
         setChats(chatsList);
       }
     );
 
-    // Cargar notificaciones
+    // Cargar notificaciones (solo del usuario actual)
     const notificationsUnsubscribe = onSnapshot(
-      query(collection(db, "notifications"), orderBy("createdAt", "desc")),
+      query(collection(db, "notifications"), where("userId", "==", user.uid)),
       (snapshot) => {
         const notificationsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Ordenar por createdAt descendente en cliente
+        notificationsList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setNotifications(notificationsList);
-        if (user) {
-          const unread = notificationsList.filter(n => !n.read && n.userId === user.uid).length;
-          setUnreadNotifications(unread);
+        const unread = notificationsList.filter(n => !n.read && n.userId === user.uid).length;
+        setUnreadNotifications(unread);
+      }
+    );
+
+    // Cargar comprobantes (solo administradores)
+    let receiptsUnsubscribe = () => {};
+    if (user.isAdmin) {
+      receiptsUnsubscribe = onSnapshot(
+        query(collection(db, "receipts"), orderBy("createdAt", "desc")),
+        (snapshot) => {
+          const receiptsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setReceipts(receiptsList);
         }
-      }
-    );
-
-    // Cargar comprobantes
-    const receiptsUnsubscribe = onSnapshot(
-      query(collection(db, "receipts"), orderBy("createdAt", "desc")),
-      (snapshot) => {
-        const receiptsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setReceipts(receiptsList);
-      }
-    );
-
-    // Cargar usuarios autorizados
-    const authorizedUnsubscribe = onSnapshot(collection(db, "authorizedSellers"), (snapshot) => {
-      const emails = snapshot.docs.map(doc => doc.data().email);
-      setAuthorizedSellers(emails);
-    });
+      );
+    }
 
     return () => {
-      publishedUnsubscribe();
       pendingUnsubscribe();
-      usersUnsubscribe();
       followersUnsubscribe();
       followingUnsubscribe();
       questionsUnsubscribe();
       chatsUnsubscribe();
       notificationsUnsubscribe();
       receiptsUnsubscribe();
-      authorizedUnsubscribe();
     };
   }, [user]);
 
@@ -1386,8 +1405,8 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
           productTitle: product.title,
           productImage: product.images ? product.images[0] : product.image,
           buyerId: buyerId,
-          buyerName: users[buyerId]?.name || "Comprador",
-          buyerAvatar: users[buyerId]?.avatar,
+          buyerName: user.name || "Comprador",
+          buyerAvatar: user.avatar,
           adminId: adminDoc.id,
           adminName: adminDoc.data().name,
           adminAvatar: adminDoc.data().avatar,
@@ -1765,6 +1784,84 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     });
   };
 
+  const fetchUserData = async (uid) => {
+    if (!uid) return;
+    if (users[uid]) return;
+    try {
+      const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", uid)));
+      if (!userDoc.empty) {
+        const data = { id: userDoc.docs[0].id, ...userDoc.docs[0].data() };
+        setUsers(prev => ({ ...prev, [uid]: data }));
+      }
+    } catch (e) {
+      console.warn("Error fetching user data:", e);
+    }
+  };
+
+  // Suscribirse en tiempo real al usuario del perfil seleccionado
+  useEffect(() => {
+    if (!selectedUserProfile) return;
+    if (user && selectedUserProfile === user.uid) return;
+    
+    const unsubscribe = onSnapshot(doc(db, "users", selectedUserProfile), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = { id: docSnap.id, ...docSnap.data() };
+        setUsers(prev => ({ ...prev, [selectedUserProfile]: data }));
+      }
+    });
+    return () => unsubscribe();
+  }, [selectedUserProfile, user]);
+
+  // Cargar usuarios bajo demanda para chats, seguidores, seguidos y likes
+  useEffect(() => {
+    const uidsToLoad = [];
+    
+    if (selectedUserProfile) {
+      const profileFollowers = followers[selectedUserProfile] || [];
+      const profileFollowing = following[selectedUserProfile] || [];
+      uidsToLoad.push(...profileFollowers, ...profileFollowing);
+      
+      const userProdList = [...products, ...pendingProducts].filter(p => p.userId === selectedUserProfile);
+      userProdList.forEach(p => {
+        if (p.likedBy) {
+          uidsToLoad.push(...p.likedBy);
+        }
+      });
+    }
+    
+    if (selectedChat) {
+      const otherParticipantId = selectedChat.participants.find(p => p !== user?.uid);
+      if (otherParticipantId) {
+        uidsToLoad.push(otherParticipantId);
+      }
+    }
+    
+    const uniqueUids = [...new Set(uidsToLoad)].filter(uid => uid && uid !== user?.uid && !users[uid]);
+    if (uniqueUids.length > 0) {
+      uniqueUids.forEach(uid => {
+        fetchUserData(uid);
+      });
+    }
+  }, [selectedUserProfile, followers, following, selectedChat, user, products, pendingProducts]);
+
+  // Suscribirse a las preguntas del producto seleccionado en tiempo real
+  useEffect(() => {
+    if (!selectedProduct) {
+      setProductQuestions([]);
+      return;
+    }
+    const q = query(
+      collection(db, "questions"),
+      where("productId", "==", selectedProduct.id)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setProductQuestions(list);
+    });
+    return () => unsubscribe();
+  }, [selectedProduct]);
+
   const getUserProducts = (userId) => {
     return [...products, ...pendingProducts].filter(p => p.userId === userId);
   };
@@ -1833,6 +1930,28 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
       return matchesSearch && matchesCat && matchesGender && matchesAge && matchesCondition;
     });
   }, [products, searchTerm, selectedCategory, selectedGender, selectedAge, selectedOutletFilter, selectedShowroomFilter, selectedConditionGroup]);
+
+  const getFilteredAdminProducts = useMemo(() => {
+    const baseList = selectedTab === 'pendientes'
+      ? pendingProducts
+      : selectedTab === 'publicadas'
+      ? products
+      : [...products, ...pendingProducts].filter(p => p.sold);
+
+    if (!adminSearchTerm.trim()) return baseList;
+
+    const term = adminSearchTerm.toLowerCase();
+    return baseList.filter(product => {
+      const titleMatch = product.title?.toLowerCase().includes(term);
+      const descMatch = product.description?.toLowerCase().includes(term);
+      const sellerMatch = product.user?.name?.toLowerCase().includes(term);
+      const categoryMatch = product.category?.toLowerCase().includes(term);
+      const sizeMatch = (product.category === 'calzado' ? product.shoeSize : product.size)?.toString().toLowerCase().includes(term);
+      const phoneMatch = product.whatsappNumber?.toLowerCase().includes(term);
+      
+      return titleMatch || descMatch || sellerMatch || categoryMatch || sizeMatch || phoneMatch;
+    });
+  }, [selectedTab, products, pendingProducts, adminSearchTerm]);
 
   const cartTotal = cart.reduce((sum, item) => {
     const discounted = getDiscountedPrice(item);
@@ -1948,7 +2067,8 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     if (!user?.isAdmin) return;
 
     const product = [...products, ...pendingProducts].find(p => p.id === productId);
-    const seller = users[sellerId];
+    const sellerName = product?.user?.name || "Vendedor";
+    const sellerAvatar = product?.user?.avatar || "";
 
     const existingChat = chats.find(chat => 
       chat.participants.includes(user.uid) && 
@@ -1964,8 +2084,8 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
         productTitle: product.title,
         productImage: product.images ? product.images[0] : product.image,
         sellerId: sellerId,
-        sellerName: seller.name,
-        sellerAvatar: seller.avatar,
+        sellerName: sellerName,
+        sellerAvatar: sellerAvatar,
         adminId: user.uid,
         adminName: user.name,
         adminAvatar: user.avatar,
@@ -2057,12 +2177,15 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     
     // Cerrar panel de admin y abrir chat
     setShowAdminModal(false);
+    setAdminSearchTerm("");
   };
 
   const closeTutorial = () => {
     setShowFirstTimeTutorial(false);
     localStorage.setItem('hasSeenTutorial', 'true');
   };
+  const viewedProfile = (user && selectedUserProfile === user.uid) ? user : (users[selectedUserProfile] || {});
+
   return (
     <div className="min-h-screen bg-[#FDFCFB] font-sans text-slate-900 pb-20 selection:bg-[#d4af37]/30">
       {/* --- Tutorial de primera vez --- */}
@@ -2409,8 +2532,11 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     {getUserChats().slice(0, 10).map(chat => {
                       const otherParticipantId = chat.participants.find(p => p !== user.uid);
                       const otherUser = users[otherParticipantId];
-                      const isAdmin = otherUser?.isAdmin;
+                      const isAdmin = otherUser?.isAdmin || chat.adminId === otherParticipantId;
                       const product = chat.productId ? [...products, ...pendingProducts].find(p => p.id === chat.productId) : null;
+                      const avatarSrc = chat.participantAvatars?.[otherParticipantId] || otherUser?.avatar || (isAdmin ? "/icon.png" : "https://api.dicebear.com/7.x/avataaars/svg?seed=" + otherParticipantId);
+                      const displayName = chat.participantNames?.[otherParticipantId] || otherUser?.name || (isAdmin ? "Administración" : "Usuario");
+                      
                       return (
                         <div
                           key={chat.id}
@@ -2422,14 +2548,14 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                         >
                           <div className="flex gap-3">
                             <img
-                              src={chat.participantAvatars?.[otherParticipantId] || (isAdmin ? "/icon.png" : otherUser?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + otherParticipantId)}
+                              src={avatarSrc}
                               alt=""
                               className="w-12 h-12 rounded-full object-cover"
                             />
                             <div className="flex-1">
                               <div className="flex justify-between items-start">
                                 <h4 className="font-bold text-sm">
-                                  {chat.participantNames?.[otherParticipantId] || (isAdmin ? "Administración" : otherUser?.name || "Usuario")}
+                                  {displayName}
                                 </h4>
                                 <span className="text-[8px] text-slate-400">
                                   {chat.lastMessageAt?.toDate().toLocaleTimeString()}
@@ -3324,7 +3450,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
 
                     {/* Lista de preguntas */}
                     <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {getProductQuestions(selectedProduct.id).map((q) => (
+                      {productQuestions.map((q) => (
                         <div key={q.id} className="bg-slate-50 p-4 rounded-xl">
                           <div className="flex items-center gap-2 mb-2">
                             <img src={q.userAvatar} alt={q.userName} className="w-6 h-6 rounded-full" />
@@ -3383,7 +3509,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                           )}
                         </div>
                       ))}
-                      {getProductQuestions(selectedProduct.id).length === 0 && (
+                      {productQuestions.length === 0 && (
                         <p className="text-center text-slate-400 py-4">No hay preguntas aún</p>
                       )}
                     </div>
@@ -3547,7 +3673,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedUserProfile(null)}></div>
           <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Perfil de {users[selectedUserProfile]?.name}</h2>
+              <h2 className="text-2xl font-bold">Perfil de {viewedProfile?.name || "Usuario"}</h2>
               <button onClick={() => setSelectedUserProfile(null)} className="p-2 hover:bg-slate-100 rounded-full">
                 <X size={24} />
               </button>
@@ -3557,7 +3683,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
               <div className="relative mb-16">
                 <div className="h-48 rounded-2xl overflow-hidden">
                   <img
-                    src={users[selectedUserProfile]?.coverImage || "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&q=80&w=1200"}
+                    src={viewedProfile?.coverImage || "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&q=80&w=1200"}
                     alt="Cover"
                     className="w-full h-full object-cover"
                   />
@@ -3565,8 +3691,8 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                 <div className="absolute -bottom-12 left-6">
                   <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden bg-white">
                     <img
-                      src={users[selectedUserProfile]?.avatar}
-                      alt={users[selectedUserProfile]?.name}
+                      src={viewedProfile?.avatar}
+                      alt={viewedProfile?.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -3575,9 +3701,9 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
 
               {/* Info del usuario */}
               <div className="mt-8">
-                <h3 className="text-2xl font-bold">{users[selectedUserProfile]?.name}</h3>
-                <p className="text-slate-500 mt-1">{users[selectedUserProfile]?.bio || "Sin biografía"}</p>
-                {users[selectedUserProfile]?.canPublish && (
+                <h3 className="text-2xl font-bold">{viewedProfile?.name || "Usuario"}</h3>
+                <p className="text-slate-500 mt-1">{viewedProfile?.bio || "Sin biografía"}</p>
+                {viewedProfile?.canPublish && (
                   <span className="inline-block mt-2 bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full">
                     Vendedor autorizado
                   </span>
@@ -3591,7 +3717,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                       <span className="font-bold">Total ganado (neto):</span>
                     </p>
                     <p className="text-2xl font-black text-emerald-600">
-                      {"$" + (users[selectedUserProfile]?.totalEarned || 0).toLocaleString()}
+                      {"$" + (viewedProfile?.totalEarned || 0).toLocaleString()}
                     </p>
                     <p className="text-[8px] text-emerald-500 mt-1">
                       *Después de comisión del 19%
@@ -3951,7 +4077,9 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                       .map(chat => {
                         const otherParticipantId = chat.participants.find(p => p !== selectedUserProfile);
                         const otherUser = users[otherParticipantId];
-                        const isAdmin = otherUser?.isAdmin;
+                        const isAdmin = otherUser?.isAdmin || chat.adminId === otherParticipantId;
+                        const avatarSrc = chat.participantAvatars?.[otherParticipantId] || otherUser?.avatar || (isAdmin ? "/icon.png" : "https://api.dicebear.com/7.x/avataaars/svg?seed=" + otherParticipantId);
+                        const displayName = chat.participantNames?.[otherParticipantId] || otherUser?.name || (isAdmin ? "Administración" : "Usuario");
                         
                         return (
                           <div
@@ -3964,14 +4092,14 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                           >
                             <div className="flex items-center gap-3">
                               <img
-                                src={chat.participantAvatars?.[otherParticipantId] || (isAdmin ? "/icon.png" : otherUser?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + otherParticipantId)}
+                                src={avatarSrc}
                                 alt=""
                                 className="w-12 h-12 rounded-full object-cover"
                               />
                               <div className="flex-1">
                                 <div className="flex justify-between items-start">
                                   <h4 className="font-bold">
-                                    {chat.participantNames?.[otherParticipantId] || (isAdmin ? "Administración" : otherUser?.name || "Usuario")}
+                                    {displayName}
                                   </h4>
                                   <span className="text-[8px] text-slate-400">
                                     {chat.lastMessageAt?.toDate().toLocaleTimeString()}
@@ -4268,11 +4396,11 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
       {/* --- Modal Admin SALE! y Gestión de Publicaciones --- */}
       {showAdminModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAdminModal(false)}></div>
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setShowAdminModal(false); setAdminSearchTerm(""); }}></div>
           <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-bold italic flex items-center gap-2 tracking-tighter"><Edit3 /> Panel de Administración</h2>
-              <button onClick={() => setShowAdminModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X /></button>
+              <button onClick={() => { setShowAdminModal(false); setAdminSearchTerm(""); }} className="p-2 hover:bg-slate-100 rounded-full"><X /></button>
             </div>
 
             {/* Configuración del Banner y Descuentos */}
@@ -4496,11 +4624,34 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
 
             {/* Gestión de Publicaciones */}
             <div>
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Clock size={18} /> {selectedTab === 'pendientes' ? 'Publicaciones Pendientes' : selectedTab === 'publicadas' ? 'Publicaciones Publicadas' : 'Publicaciones Vendidas'}
-              </h3>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Clock size={18} /> {selectedTab === 'pendientes' ? 'Publicaciones Pendientes' : selectedTab === 'publicadas' ? 'Publicaciones Publicadas' : 'Publicaciones Vendidas'}
+                </h3>
+                
+                {/* Buscador de productos en Admin Panel */}
+                <div className="relative group w-full md:max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar publicaciones por título, vendedor, talle..."
+                    className="w-full bg-slate-50 rounded-full py-2.5 px-10 text-xs focus:ring-1 focus:ring-[#d4af37] outline-none transition-all border border-transparent focus:bg-white focus:border-slate-200 shadow-inner"
+                    value={adminSearchTerm}
+                    onChange={(e) => setAdminSearchTerm(e.target.value)}
+                  />
+                  <Search className="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-[#d4af37] transition-colors" size={14} />
+                  {adminSearchTerm && (
+                    <button
+                      onClick={() => setAdminSearchTerm("")}
+                      className="absolute right-3.5 top-3 text-slate-400 hover:text-black"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              
               <div className="space-y-6">
-                {(selectedTab === 'pendientes' ? pendingProducts : selectedTab === 'publicadas' ? products : [...products, ...pendingProducts].filter(p => p.sold)).map(product => (
+                {getFilteredAdminProducts.map(product => (
                   <div key={product.id} className="border rounded-3xl p-6 bg-gradient-to-r from-slate-50 to-white shadow-lg hover:shadow-xl transition-all">
                     <div className="flex gap-6">
                       <div className="relative">
@@ -4749,6 +4900,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                           onClick={() => {
                             handleAdminStartDirectChat(userItem);
                             setShowAdminModal(false);
+                            setAdminSearchTerm("");
                           }}
                           className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#d4af37] transition-all"
                         >
