@@ -670,18 +670,14 @@ export default function App() {
       (snapshot) => {
         const productsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsList);
+      },
+      (error) => {
+        console.error("Error al suscribirse a productos públicos:", error);
       }
     );
 
-    // Cargar usuarios autorizados (para validar registro/publicación)
-    const authorizedUnsubscribe = onSnapshot(collection(db, "authorizedSellers"), (snapshot) => {
-      const emails = snapshot.docs.map(doc => doc.data().email);
-      setAuthorizedSellers(emails);
-    });
-
     return () => {
       publishedUnsubscribe();
-      authorizedUnsubscribe();
     };
   }, []);
 
@@ -697,8 +693,21 @@ export default function App() {
       setNotifications([]);
       setUnreadNotifications(0);
       setReceipts([]);
+      setAuthorizedSellers([]);
       return;
     }
+
+    // Cargar usuarios autorizados (solo cuando está logueado)
+    const authorizedUnsubscribe = onSnapshot(
+      collection(db, "authorizedSellers"), 
+      (snapshot) => {
+        const emails = snapshot.docs.map(doc => doc.data().email);
+        setAuthorizedSellers(emails);
+      },
+      (error) => {
+        console.error("Error al suscribirse a usuarios autorizados:", error);
+      }
+    );
 
     // Suscribirse a productos pendientes
     // Si es administrador ve todos los pendientes, de lo contrario solo los propios
@@ -709,6 +718,8 @@ export default function App() {
     const pendingUnsubscribe = onSnapshot(pendingQuery, (snapshot) => {
       const pendingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPendingProducts(pendingList);
+    }, (error) => {
+      console.error("Error al suscribirse a productos pendientes:", error);
     });
 
     // Cargar seguidores
@@ -722,6 +733,8 @@ export default function App() {
         followersMap[data.userId].push(data.followerId);
       });
       setFollowers(followersMap);
+    }, (error) => {
+      console.error("Error al suscribirse a seguidores:", error);
     });
 
     // Cargar following
@@ -735,6 +748,8 @@ export default function App() {
         followingMap[data.userId].push(data.followingId);
       });
       setFollowing(followingMap);
+    }, (error) => {
+      console.error("Error al suscribirse a seguidos:", error);
     });
 
     // Cargar preguntas (para cuando se visitan perfiles)
@@ -744,6 +759,8 @@ export default function App() {
         const questionsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         questionsList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setQuestions(questionsList);
+      }, (error) => {
+        console.error("Error al suscribirse a preguntas:", error);
       }
     );
 
@@ -755,6 +772,8 @@ export default function App() {
         // Ordenar por lastMessageAt descendente en cliente
         chatsList.sort((a, b) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0));
         setChats(chatsList);
+      }, (error) => {
+        console.error("Error al suscribirse a chats:", error);
       }
     );
 
@@ -768,6 +787,8 @@ export default function App() {
         setNotifications(notificationsList);
         const unread = notificationsList.filter(n => !n.read && n.userId === user.uid).length;
         setUnreadNotifications(unread);
+      }, (error) => {
+        console.error("Error al suscribirse a notificaciones:", error);
       }
     );
 
@@ -779,11 +800,14 @@ export default function App() {
         (snapshot) => {
           const receiptsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setReceipts(receiptsList);
+        }, (error) => {
+          console.error("Error al suscribirse a comprobantes:", error);
         }
       );
     }
 
     return () => {
+      authorizedUnsubscribe();
       pendingUnsubscribe();
       followersUnsubscribe();
       followingUnsubscribe();
