@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, ShoppingBag, User, Heart, PlusCircle, X, Camera, ChevronRight, Trash2, ArrowRight, Tag, Check, Edit3, Lock, CheckCircle, Clock, AlertCircle, LogOut, Settings, Image as ImageIcon, Users, ThumbsUp, UserPlus, UserCheck, ChevronLeft, ChevronRight as ChevronRightIcon, Info, Download, MessageCircle, Send, DollarSign, Crop, Move, Maximize2, Minimize2, Ban, MessageSquare, Bell, Phone, CreditCard, Upload, ZoomIn, FileText, HelpCircle, Smartphone, Paperclip, GripVertical, ToggleLeft, ToggleRight, RefreshCw, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { initializeFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, Timestamp, setDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { initializeFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, Timestamp, setDoc, increment, arrayUnion, arrayRemove, enableIndexedDbPersistence } from 'firebase/firestore';
 import Cropper from 'react-easy-crop';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -25,6 +25,11 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true
+});
+
+// Habilitar persistencia en base de datos local (IndexedDB) para carga instantánea
+enableIndexedDbPersistence(db).catch((err) => {
+  console.warn("Persistencia de Firestore offline omitida o no soportada:", err.code);
 });
 const googleProvider = new GoogleAuthProvider();
 
@@ -2964,6 +2969,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     src={product.images ? product.images[0] : product.image}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 cursor-zoom-in"
                     alt={product.title}
+                    loading="lazy"
                     onClick={e => { e.stopPropagation(); setLightbox(product.images ? product.images[0] : product.image); }}
                   />
                   {product.sold && (
