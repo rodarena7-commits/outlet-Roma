@@ -529,6 +529,7 @@ export default function App() {
   const [selectedShowroomFilter, setSelectedShowroomFilter] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [adminSearchTerm, setAdminSearchTerm] = useState("");
+  const [adminSortOrder, setAdminSortOrder] = useState("newest");
   const [productQuestions, setProductQuestions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedGender, setSelectedGender] = useState("Todo");
@@ -2100,20 +2101,37 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
       ? products
       : [...products, ...pendingProducts].filter(p => p.sold);
 
-    if (!adminSearchTerm.trim()) return baseList;
+    let filteredList = baseList;
+    if (adminSearchTerm.trim()) {
+      const term = adminSearchTerm.toLowerCase();
+      filteredList = baseList.filter(product => {
+        const titleMatch = product.title?.toLowerCase().includes(term);
+        const descMatch = product.description?.toLowerCase().includes(term);
+        const sellerMatch = product.user?.name?.toLowerCase().includes(term);
+        const categoryMatch = product.category?.toLowerCase().includes(term);
+        const sizeMatch = (product.category === 'calzado' ? product.shoeSize : product.size)?.toString().toLowerCase().includes(term);
+        const phoneMatch = product.whatsappNumber?.toLowerCase().includes(term);
+        
+        return titleMatch || descMatch || sellerMatch || categoryMatch || sizeMatch || phoneMatch;
+      });
+    }
 
-    const term = adminSearchTerm.toLowerCase();
-    return baseList.filter(product => {
-      const titleMatch = product.title?.toLowerCase().includes(term);
-      const descMatch = product.description?.toLowerCase().includes(term);
-      const sellerMatch = product.user?.name?.toLowerCase().includes(term);
-      const categoryMatch = product.category?.toLowerCase().includes(term);
-      const sizeMatch = (product.category === 'calzado' ? product.shoeSize : product.size)?.toString().toLowerCase().includes(term);
-      const phoneMatch = product.whatsappNumber?.toLowerCase().includes(term);
-      
-      return titleMatch || descMatch || sellerMatch || categoryMatch || sizeMatch || phoneMatch;
+    // Ordenar por tiempo
+    return [...filteredList].sort((a, b) => {
+      const timeA = selectedTab === 'pendientes'
+        ? (a.createdAt?.toMillis() || 0)
+        : (a.publishedAt?.toMillis() || a.createdAt?.toMillis() || 0);
+      const timeB = selectedTab === 'pendientes'
+        ? (b.createdAt?.toMillis() || 0)
+        : (b.publishedAt?.toMillis() || b.createdAt?.toMillis() || 0);
+
+      if (adminSortOrder === "newest") {
+        return timeB - timeA; // Más reciente primero (menos días)
+      } else {
+        return timeA - timeB; // Más antiguo primero (más días)
+      }
     });
-  }, [selectedTab, products, pendingProducts, adminSearchTerm]);
+  }, [selectedTab, products, pendingProducts, adminSearchTerm, adminSortOrder]);
 
   // Temporizador global para actualizaciones en tiempo real de cuentas regresivas
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -5121,24 +5139,36 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                   <Clock size={18} /> {selectedTab === 'pendientes' ? 'Publicaciones Pendientes' : selectedTab === 'publicadas' ? 'Publicaciones Publicadas' : 'Publicaciones Vendidas'}
                 </h3>
                 
-                {/* Buscador de productos en Admin Panel */}
-                <div className="relative group w-full md:max-w-md">
-                  <input
-                    type="text"
-                    placeholder="Buscar publicaciones por título, vendedor, talle..."
-                    className="w-full bg-slate-50 rounded-full py-2.5 px-10 text-xs focus:ring-1 focus:ring-[#d4af37] outline-none transition-all border border-transparent focus:bg-white focus:border-slate-200 shadow-inner"
-                    value={adminSearchTerm}
-                    onChange={(e) => setAdminSearchTerm(e.target.value)}
-                  />
-                  <Search className="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-[#d4af37] transition-colors" size={14} />
-                  {adminSearchTerm && (
-                    <button
-                      onClick={() => setAdminSearchTerm("")}
-                      className="absolute right-3.5 top-3 text-slate-400 hover:text-black"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:max-w-xl">
+                  {/* Ordenar publicaciones */}
+                  <select
+                    className="bg-slate-50 border border-slate-100 rounded-full py-2.5 px-4 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-[#d4af37] cursor-pointer"
+                    value={adminSortOrder}
+                    onChange={(e) => setAdminSortOrder(e.target.value)}
+                  >
+                    <option value="newest">Nuevos primeros (menos días)</option>
+                    <option value="oldest">Antiguos primeros (más días)</option>
+                  </select>
+
+                  {/* Buscador de productos en Admin Panel */}
+                  <div className="relative group flex-1 w-full">
+                    <input
+                      type="text"
+                      placeholder="Buscar publicaciones por título, vendedor, talle..."
+                      className="w-full bg-slate-50 rounded-full py-2.5 px-10 text-xs focus:ring-1 focus:ring-[#d4af37] outline-none transition-all border border-transparent focus:bg-white focus:border-slate-200 shadow-inner"
+                      value={adminSearchTerm}
+                      onChange={(e) => setAdminSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-[#d4af37] transition-colors" size={14} />
+                    {adminSearchTerm && (
+                      <button
+                        onClick={() => setAdminSearchTerm("")}
+                        className="absolute right-3.5 top-3 text-slate-400 hover:text-black"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               
