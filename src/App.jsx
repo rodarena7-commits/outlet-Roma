@@ -508,6 +508,7 @@ export default function App() {
   const [saleClicks, setSaleClicks] = useState(0);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [trafficData, setTrafficData] = useState({ total: 0, daily: [] });
   const [pinInput, setPinInput] = useState("");
   const [saleConfig, setSaleConfig] = useState({
     title: "¡GRAN LIQUIDACIÓN DE TEMPORADA!",
@@ -564,7 +565,10 @@ export default function App() {
     outseam: "",
     sold: false,
     buyerId: null,
-    soldAt: null
+    soldAt: null,
+    salePrice: "",
+    flashSalePrice: "",
+    flashSaleDurationHours: ""
   });
 
   // Perfil del usuario
@@ -668,6 +672,71 @@ export default function App() {
     }
     migrateProducts();
   }, []);
+
+  // Registrar visita (una vez al día por usuario/dispositivo)
+  useEffect(() => {
+    const recordVisit = async () => {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+        const lastVisit = localStorage.getItem('last_visit_date');
+        
+        if (lastVisit !== todayStr) {
+          // Incrementar contador diario
+          const dailyRef = doc(db, "traffic", todayStr);
+          await setDoc(dailyRef, { count: increment(1) }, { merge: true });
+          
+          // Incrementar contador total
+          const globalRef = doc(db, "traffic", "global");
+          await setDoc(globalRef, { total: increment(1) }, { merge: true });
+          
+          localStorage.setItem('last_visit_date', todayStr);
+        }
+      } catch (e) {
+        console.error("Error al registrar visita:", e);
+      }
+    };
+    recordVisit();
+  }, []);
+
+  // Cargar estadísticas de tráfico y lista de todos los usuarios únicamente cuando se abre el panel de administración
+  useEffect(() => {
+    if (!showAdminModal || !user?.isAdmin) return;
+
+    // Suscribirse a la colección de usuarios para administración
+    const usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      const usersMap = {};
+      snapshot.docs.forEach(doc => {
+        usersMap[doc.id] = { id: doc.id, ...doc.data() };
+      });
+      setUsers(prev => ({ ...prev, ...usersMap }));
+    }, (error) => {
+      console.error("Error al suscribirse a todos los usuarios para admin:", error);
+    });
+
+    // Suscribirse a la colección de tráfico
+    const trafficUnsubscribe = onSnapshot(collection(db, "traffic"), (snapshot) => {
+      let total = 0;
+      const daily = [];
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (doc.id === "global") {
+          total = data.total || 0;
+        } else {
+          daily.push({ date: doc.id, count: data.count || 0 });
+        }
+      });
+      // Ordenar visitas diarias por fecha descendente
+      daily.sort((a, b) => b.date.localeCompare(a.date));
+      setTrafficData({ total, daily });
+    }, (error) => {
+      console.error("Error al suscribirse a estadísticas de tráfico:", error);
+    });
+
+    return () => {
+      usersUnsubscribe();
+      trafficUnsubscribe();
+    };
+  }, [showAdminModal, user]);
 
   // 1. Cargar datos públicos desde Firestore (siempre activo, no requiere iniciar sesión)
   useEffect(() => {
@@ -902,7 +971,8 @@ export default function App() {
               totalEarned: 0,
               isAdmin: isMainAdmin,
               isMainAdmin: isMainAdmin,
-              canPublish: canPublishValue
+              canPublish: canPublishValue,
+              createdAt: Timestamp.now()
             };
             await setDoc(doc(db, "users", firebaseUser.uid), newUser);
             setUser(newUser);
@@ -1208,7 +1278,10 @@ export default function App() {
         publicada: false
       },
       appId: APP_ID,
-      createdAt: Timestamp.now()
+      createdAt: Timestamp.now(),
+      salePrice: newProduct.salePrice ? parseInt(newProduct.salePrice) : null,
+      flashSalePrice: newProduct.flashSalePrice ? parseInt(newProduct.flashSalePrice) : null,
+      flashSaleDurationHours: newProduct.flashSaleDurationHours ? parseFloat(newProduct.flashSaleDurationHours) : null
     };
 
     // Guardar el producto en Firestore
@@ -1310,13 +1383,23 @@ export default function App() {
 
   const handlePublishProduct = async (productId) => {
     const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    const product = pendingProducts.find(p => p.id === productId) || products.find(p => p.id === productId);
+    
+    const updates = {
       'status.publicada': true,
       'status.aprobada': true
-    });
+    };
+
+    if (product && product.flashSaleDurationHours) {
+      const duration = parseFloat(product.flashSaleDurationHours);
+      if (duration > 0) {
+        updates.flashSaleEndsAt = Timestamp.fromMillis(Date.now() + duration * 60 * 60 * 1000);
+      }
+    }
+
+    await updateDoc(productRef, updates);
 
     // Notificar al vendedor
-    const product = pendingProducts.find(p => p.id === productId);
     if (product) {
       await addDoc(collection(db, "notifications"), {
         userId: product.userId,
@@ -1344,6 +1427,19 @@ export default function App() {
     const montoNeto = precio - (precio * COMISION);
     const comisionMonto = precio * COMISION;
 
+    const oldProduct = products.find(p => p.id === editingProduct.id) || pendingProducts.find(p => p.id === editingProduct.id);
+    let flashSaleEndsAt = editingProduct.flashSaleEndsAt || null;
+    if (editingProduct.flashSaleDurationHours && editingProduct.status?.publicada) {
+      if (!oldProduct || oldProduct.flashSaleDurationHours !== editingProduct.flashSaleDurationHours || !oldProduct.flashSaleEndsAt) {
+        const duration = parseFloat(editingProduct.flashSaleDurationHours);
+        if (duration > 0) {
+          flashSaleEndsAt = Timestamp.fromMillis(Date.now() + duration * 60 * 60 * 1000);
+        }
+      }
+    } else if (!editingProduct.flashSaleDurationHours) {
+      flashSaleEndsAt = null;
+    }
+
     const updatedProduct = {
       ...editingProduct,
       images: editingProduct.images || [editingProduct.image],
@@ -1355,7 +1451,11 @@ export default function App() {
         verificada: false,
         aprobada: false,
         publicada: false
-      }
+      },
+      salePrice: editingProduct.salePrice ? parseInt(editingProduct.salePrice) : null,
+      flashSalePrice: editingProduct.flashSalePrice ? parseInt(editingProduct.flashSalePrice) : null,
+      flashSaleDurationHours: editingProduct.flashSaleDurationHours ? parseFloat(editingProduct.flashSaleDurationHours) : null,
+      flashSaleEndsAt: flashSaleEndsAt
     };
 
     await updateDoc(productRef, updatedProduct);
@@ -2014,9 +2114,100 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     });
   }, [selectedTab, products, pendingProducts, adminSearchTerm]);
 
+  // Temporizador global para actualizaciones en tiempo real de cuentas regresivas
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getProductPriceInfo = (product) => {
+    if (!product) return null;
+    const originalPrice = product.price;
+    const salePrice = product.salePrice ? parseInt(product.salePrice) : null;
+    const flashSalePrice = product.flashSalePrice ? parseInt(product.flashSalePrice) : null;
+    
+    // Verificar si la oferta relámpago está activa
+    let isFlashSaleActive = false;
+    if (flashSalePrice && product.flashSaleEndsAt) {
+      const endsAt = product.flashSaleEndsAt.toMillis();
+      if (endsAt > currentTime) {
+        isFlashSaleActive = true;
+      }
+    }
+    
+    if (isFlashSaleActive) {
+      const discountPercent = Math.round(((originalPrice - flashSalePrice) / originalPrice) * 100);
+      return {
+        originalPrice,
+        slashedOriginal: true,
+        slashedSale: salePrice !== null,
+        salePrice: salePrice,
+        flashSalePrice: flashSalePrice,
+        activePrice: flashSalePrice,
+        isFlashSaleActive: true,
+        discountPercent,
+      };
+    } else if (salePrice) {
+      const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+      return {
+        originalPrice,
+        slashedOriginal: true,
+        slashedSale: false,
+        salePrice: salePrice,
+        flashSalePrice: null,
+        activePrice: salePrice,
+        isFlashSaleActive: false,
+        discountPercent,
+      };
+    } else {
+      // Aplicar descuento global (Banner/Categorías) si está activo y no hay oferta específica del producto
+      const discounted = getDiscountedPrice(product);
+      if (discounted !== originalPrice) {
+        const discountPercent = Math.round(((originalPrice - discounted) / originalPrice) * 100);
+        return {
+          originalPrice,
+          slashedOriginal: true,
+          slashedSale: false,
+          salePrice: discounted,
+          flashSalePrice: null,
+          activePrice: discounted,
+          isFlashSaleActive: false,
+          discountPercent,
+        };
+      }
+      
+      return {
+        originalPrice,
+        slashedOriginal: false,
+        slashedSale: false,
+        salePrice: null,
+        flashSalePrice: null,
+        activePrice: originalPrice,
+        isFlashSaleActive: false,
+        discountPercent: 0,
+      };
+    }
+  };
+
+  const getFlashSaleRemainingTime = (endsAtTimestamp) => {
+    if (!endsAtTimestamp) return null;
+    const diff = endsAtTimestamp.toMillis() - currentTime;
+    if (diff <= 0) return "Expirado";
+    
+    const totalSeconds = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   const cartTotal = cart.reduce((sum, item) => {
-    const discounted = getDiscountedPrice(item);
-    return sum + (saleConfig.active ? discounted : item.price);
+    const priceInfo = getProductPriceInfo(item);
+    return sum + (priceInfo ? priceInfo.activePrice : item.price);
   }, 0);
   const cartTotalWithDiscount = cartTotal * 0.95; // 5% de descuento para transferencia
 
@@ -2979,13 +3170,44 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                       </span>
                     </div>
                   )}
+
+                  {/* Banner de Oferta Relámpago (Cuenta regresiva) */}
+                  {(() => {
+                    const priceInfo = getProductPriceInfo(product);
+                    if (priceInfo?.isFlashSaleActive) {
+                      const timeStr = getFlashSaleRemainingTime(product.flashSaleEndsAt);
+                      return (
+                        <div className="absolute bottom-0 left-0 right-0 bg-red-600 text-white text-[7px] md:text-[10px] font-black uppercase tracking-widest py-1.5 px-3 flex items-center justify-between shadow-lg">
+                          <span className="flex items-center gap-0.5">⚡ ¡Relámpago!</span>
+                          <span>⏳ {timeStr}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Porcentaje de Descuento (Top-Left) */}
+                  {(() => {
+                    const priceInfo = getProductPriceInfo(product);
+                    if (priceInfo && priceInfo.discountPercent > 0) {
+                      return (
+                        <div className="absolute top-1.5 left-1.5 md:top-3 md:left-3 z-[2]">
+                          <span className={`${priceInfo.isFlashSaleActive ? 'bg-red-600 text-white animate-pulse' : 'bg-black text-[#d4af37]'} text-[6px] md:text-[9px] font-black px-1.5 py-0.5 md:px-3 md:py-1.5 rounded-full shadow-lg border border-transparent`}>
+                            {priceInfo.discountPercent}% OFF
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   <div className="absolute top-1.5 right-1.5 md:top-3 md:right-3">
                     <span className="bg-white/90 backdrop-blur-sm text-black text-[6px] md:text-[9px] font-black px-1.5 py-0.5 md:px-3 md:py-1.5 rounded-full shadow-lg uppercase border border-slate-100">
                       {product.category === 'calzado' ? ("Talle " + product.shoeSize) : ("Talle " + product.size)}
                     </span>
                   </div>
                 </div>
-
+ 
                 <div className="p-2 md:p-5 flex-1 flex flex-col">
                   <div className="mb-2 md:mb-4">
                     <div className="hidden md:flex items-center gap-1.5 mb-2">
@@ -2997,25 +3219,32 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                       <p className="text-[8px] md:text-[10px] text-emerald-600 font-bold mt-1">{product.cuotas}</p>
                     )}
                   </div>
-
+ 
                   <div className="mt-auto flex flex-col border-t border-slate-50 pt-2 md:pt-4">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
                         <span className="text-[7px] md:text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Precio</span>
                         {(() => {
-                          const discounted = getDiscountedPrice(product);
-                          const hasDiscount = saleConfig.active && discounted !== product.price;
+                          const info = getProductPriceInfo(product);
+                          if (!info) return null;
                           return (
-                            <>
-                              <span className={`text-xs md:text-xl font-black ${hasDiscount ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                                {"$" + product.price.toLocaleString()}
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {info.slashedOriginal && (
+                                  <span className="text-[8px] md:text-xs text-slate-400 line-through">
+                                    {"$" + info.originalPrice.toLocaleString()}
+                                  </span>
+                                )}
+                                {info.slashedSale && info.salePrice && (
+                                  <span className="text-[8px] md:text-xs text-red-400 line-through">
+                                    {"$" + info.salePrice.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-xs md:text-xl font-black ${info.isFlashSaleActive ? 'text-green-600' : 'text-slate-900'}`}>
+                                {"$" + info.activePrice.toLocaleString()}
                               </span>
-                              {hasDiscount && (
-                                <span className="text-xs md:text-xl font-black text-green-600">
-                                  {"$" + discounted.toLocaleString()}
-                                </span>
-                              )}
-                            </>
+                            </div>
                           );
                         })()}
                       </div>
@@ -3343,18 +3572,31 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
 
                   <div className="flex items-center gap-4 mb-4">
                     {(() => {
-                      const discounted = getDiscountedPrice(selectedProduct);
-                      const hasDiscount = saleConfig.active && discounted !== selectedProduct.price;
+                      const info = getProductPriceInfo(selectedProduct);
+                      if (!info) return null;
                       return (
-                        <div className="flex flex-col">
-                          <span className={`text-3xl font-black ${hasDiscount ? 'text-slate-400 line-through' : 'text-[#d4af37]'}`}>
-                            {"$" + selectedProduct.price.toLocaleString()}
-                          </span>
-                          {hasDiscount && (
-                            <span className="text-3xl font-black text-green-600">
-                              {"$" + discounted.toLocaleString()}
-                            </span>
+                        <div className="flex flex-col gap-1">
+                          {info.isFlashSaleActive && (
+                            <div className="bg-red-50 text-red-600 border border-red-100 rounded-2xl px-4 py-2 flex items-center justify-between text-xs font-bold gap-3 mb-2">
+                              <span>⚡ ¡OFERTA RELÁMPAGO!</span>
+                              <span>⏳ {getFlashSaleRemainingTime(selectedProduct.flashSaleEndsAt)}</span>
+                            </div>
                           )}
+                          <div className="flex items-center gap-2">
+                            {info.slashedOriginal && (
+                              <span className="text-sm md:text-lg text-slate-400 line-through">
+                                {"$" + info.originalPrice.toLocaleString()}
+                              </span>
+                            )}
+                            {info.slashedSale && info.salePrice && (
+                              <span className="text-sm md:text-lg text-red-400 line-through">
+                                {"$" + info.salePrice.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <span className={`text-3xl font-black ${info.isFlashSaleActive ? 'text-green-600' : 'text-[#d4af37]'}`}>
+                            {"$" + info.activePrice.toLocaleString()}
+                          </span>
                         </div>
                       );
                     })()}
@@ -4683,7 +4925,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
             </div>
 
             {/* Pestañas para publicaciones */}
-            <div className="flex gap-4 mb-6 border-b">
+            <div className="flex gap-4 mb-6 border-b flex-wrap">
               <button
                 onClick={() => setSelectedTab('pendientes')}
                 className={"px-4 py-2 text-sm font-bold uppercase tracking-widest " +
@@ -4705,10 +4947,152 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
               >
                 Vendidas ({[...products, ...pendingProducts].filter(p => p.sold).length})
               </button>
+              <button
+                onClick={() => setSelectedTab('estadisticas')}
+                className={"px-4 py-2 text-sm font-bold uppercase tracking-widest " +
+                  (selectedTab === 'estadisticas' ? 'text-black border-b-2 border-black' : 'text-slate-400')}
+              >
+                Estadísticas y Usuarios
+              </button>
             </div>
 
-            {/* Gestión de Publicaciones */}
-            <div>
+            {/* Gestión de Publicaciones / Estadísticas */}
+            {selectedTab === 'estadisticas' ? (
+              <div className="space-y-8 mt-6">
+                {/* Métricas de Tráfico */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Visitas Totales */}
+                  <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Visitas Totales</span>
+                      <h4 className="text-4xl font-black text-slate-900 mt-1">{trafficData.total.toLocaleString()}</h4>
+                      <p className="text-xs text-slate-500 mt-1">Personas que ingresaron a la tienda</p>
+                    </div>
+                    <div className="bg-black text-[#d4af37] p-4 rounded-2xl">
+                      <Users size={28} />
+                    </div>
+                  </div>
+
+                  {/* Visitas de hoy */}
+                  <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Visitas de Hoy</span>
+                      <h4 className="text-4xl font-black text-slate-900 mt-1">
+                        {(() => {
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const todayVisit = trafficData.daily.find(d => d.date === todayStr);
+                          return todayVisit ? todayVisit.count.toLocaleString() : "0";
+                        })()}
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1">Visitantes únicos detectados en este día</p>
+                    </div>
+                    <div className="bg-[#d4af37] text-white p-4 rounded-2xl">
+                      <Clock size={28} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Historial de visitas por día */}
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <h4 className="text-sm font-black uppercase text-slate-400 tracking-wider mb-4">Historial de Visitas por Día</h4>
+                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-100 bg-white">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b text-[10px] font-bold uppercase text-slate-400">
+                          <th className="p-3 pl-5">Fecha</th>
+                          <th className="p-3 pr-5 text-right">Cantidad de Personas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trafficData.daily.map(day => (
+                          <tr key={day.date} className="border-b hover:bg-slate-50/50 transition-all">
+                            <td className="p-3 pl-5 font-bold text-slate-700">
+                              {day.date.split('-').reverse().join('/')}
+                            </td>
+                            <td className="p-3 pr-5 text-right font-black text-slate-950">
+                              {day.count.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                        {trafficData.daily.length === 0 && (
+                          <tr>
+                            <td colSpan="2" className="p-6 text-center text-slate-400">No hay registros de tráfico</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Personas Registradas */}
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h4 className="text-sm font-black uppercase text-slate-400 tracking-wider">Personas Registradas ({Object.keys(users).length})</h4>
+                    
+                    {/* Buscador de usuarios */}
+                    <div className="relative w-full md:max-w-xs">
+                      <input
+                        type="text"
+                        placeholder="Buscar usuarios..."
+                        className="w-full bg-white border rounded-xl py-1.5 pl-8 pr-3 text-xs outline-none focus:ring-1 focus:ring-[#d4af37]"
+                        value={searchUserTerm}
+                        onChange={(e) => setSearchUserTerm(e.target.value)}
+                      />
+                      <Search className="absolute left-2.5 top-2 text-slate-400" size={12} />
+                    </div>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                    {Object.values(users)
+                      .filter(u =>
+                        u.name?.toLowerCase().includes(searchUserTerm.toLowerCase()) ||
+                        u.email?.toLowerCase().includes(searchUserTerm.toLowerCase())
+                      )
+                      .map(userItem => (
+                        <div key={userItem.uid} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 hover:shadow-md transition-all">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={userItem.avatar}
+                              alt={userItem.name}
+                              className="w-10 h-10 rounded-full object-cover border"
+                            />
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h5 className="font-bold text-sm text-slate-900">{userItem.name}</h5>
+                                {userItem.isAdmin && (
+                                  <span className="bg-amber-100 text-amber-800 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">Admin</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500">{userItem.email}</p>
+                              {userItem.createdAt && (
+                                <p className="text-[8px] text-slate-400 mt-0.5">
+                                  Registrado el {userItem.createdAt.toDate().toLocaleDateString()} a las {userItem.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {userItem.uid !== user?.uid && (
+                            <button
+                              onClick={() => {
+                                handleAdminStartDirectChat(userItem);
+                                setShowAdminModal(false);
+                              }}
+                              className="bg-black text-[#d4af37] px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#d4af37] hover:text-white transition-all flex items-center gap-1"
+                            >
+                              <MessageSquare size={12} /> Chat
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    {Object.keys(users).length === 0 && (
+                      <p className="text-center text-slate-400 py-6 text-xs">Cargando usuarios registrados...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <h3 className="text-lg font-bold flex items-center gap-2">
                   <Clock size={18} /> {selectedTab === 'pendientes' ? 'Publicaciones Pendientes' : selectedTab === 'publicadas' ? 'Publicaciones Publicadas' : 'Publicaciones Vendidas'}
@@ -4936,6 +5320,7 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                 ))}
               </div>
             </div>
+            )}
 
             {/* --- Sección de Chats con Usuarios (Admin) --- */}
             <div className="mt-12">
@@ -5240,6 +5625,50 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                   </p>
                 </div>
 
+                {user?.isAdmin && (
+                  <div className="bg-amber-50/30 p-6 rounded-3xl border border-amber-100/50 space-y-4">
+                    <h4 className="text-xs font-black uppercase text-amber-700 tracking-widest mb-2 flex items-center gap-1">
+                      <Tag size={14} /> Promociones y Ofertas (Administrador)
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Precio de Oferta ($)</label>
+                        <input
+                          type="number"
+                          placeholder="Sin oferta"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={editingProduct.salePrice || ""}
+                          onChange={(e) => setEditingProduct({...editingProduct, salePrice: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Precio Relámpago ($)</label>
+                        <input
+                          type="number"
+                          placeholder="Sin oferta relámpago"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={editingProduct.flashSalePrice || ""}
+                          onChange={(e) => setEditingProduct({...editingProduct, flashSalePrice: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    {editingProduct.flashSalePrice && (
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Duración Oferta Relámpago (Horas)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="Ej: 3"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={editingProduct.flashSaleDurationHours || ""}
+                          onChange={(e) => setEditingProduct({...editingProduct, flashSaleDurationHours: e.target.value})}
+                          required={!!editingProduct.flashSalePrice}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <input
                   type="number"
                   placeholder="Cuotas sin interés (solo número, ej: 12)"
@@ -5473,6 +5902,50 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                     <p className="text-sm text-slate-600">
                       <span className="font-bold">Neto a cobrar:</span> {"$" + (parseInt(newProduct.price) - parseInt(newProduct.price) * COMISION).toLocaleString()}
                     </p>
+                  </div>
+                )}
+
+                {user?.isAdmin && (
+                  <div className="bg-amber-50/30 p-6 rounded-3xl border border-amber-100/50 space-y-4">
+                    <h4 className="text-xs font-black uppercase text-amber-700 tracking-widest mb-2 flex items-center gap-1">
+                      <Tag size={14} /> Promociones y Ofertas (Administrador)
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Precio de Oferta ($)</label>
+                        <input
+                          type="number"
+                          placeholder="Sin oferta"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={newProduct.salePrice || ""}
+                          onChange={(e) => setNewProduct({...newProduct, salePrice: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Precio Relámpago ($)</label>
+                        <input
+                          type="number"
+                          placeholder="Sin oferta relámpago"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={newProduct.flashSalePrice || ""}
+                          onChange={(e) => setNewProduct({...newProduct, flashSalePrice: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    {newProduct.flashSalePrice && (
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-slate-400">Duración Oferta Relámpago (Horas)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="Ej: 3"
+                          className="w-full bg-white border rounded-2xl py-3 px-4 text-xs outline-none"
+                          value={newProduct.flashSaleDurationHours || ""}
+                          onChange={(e) => setNewProduct({...newProduct, flashSaleDurationHours: e.target.value})}
+                          required={!!newProduct.flashSalePrice}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
