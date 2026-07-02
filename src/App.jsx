@@ -1387,7 +1387,8 @@ export default function App() {
     
     const updates = {
       'status.publicada': true,
-      'status.aprobada': true
+      'status.aprobada': true,
+      publishedAt: Timestamp.now()
     };
 
     if (product && product.flashSaleDurationHours) {
@@ -2203,6 +2204,28 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
     const seconds = totalSeconds % 60;
     
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getDaysAgo = (timestamp) => {
+    if (!timestamp) return "";
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const diffTime = Math.abs(Date.now() - date.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+        if (diffHours === 0) {
+          const diffMinutes = Math.floor(diffTime / (1000 * 60));
+          return diffMinutes <= 1 ? "hace instantes" : `hace ${diffMinutes} minutos`;
+        }
+        return `hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+      }
+      return `hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+    } catch (e) {
+      console.error("Error al formatear fecha hace días:", e);
+      return "";
+    }
   };
 
   const cartTotal = cart.reduce((sum, item) => {
@@ -5146,9 +5169,16 @@ const handleMarkAsSold = async (productId, buyerId, paymentMethod = 'mercadopago
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="font-bold text-xl mb-1">{product.title}</h4>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <img src={product.user.avatar} alt={product.user.name} className="w-5 h-5 rounded-full" />
                               <p className="text-sm text-slate-600">{product.user.name}</p>
+                              <span className="text-[10px] text-slate-400">•</span>
+                              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-bold">
+                                {product.status.publicada
+                                  ? `Publicado ${getDaysAgo(product.publishedAt || product.createdAt)}`
+                                  : `Creado ${getDaysAgo(product.createdAt)}`
+                                }
+                              </span>
                             </div>
                           </div>
                           <div className="flex gap-2">
