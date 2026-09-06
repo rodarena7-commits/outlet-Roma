@@ -46,6 +46,34 @@ const INITIAL_AUTHORIZED_SELLERS = [
   "romina.arena89@gmail.com"
 ];
 
+// --- Utils para caché de Firestore en LocalStorage ---
+const parseFirestoreCache = (jsonString) => {
+  if (!jsonString) return null;
+  try {
+    const data = JSON.parse(jsonString);
+    // Revivir objetos de fecha/timestamp de Firestore
+    const reviveTimestamps = (obj) => {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) return obj.map(reviveTimestamps);
+      
+      // Si tiene la estructura de un Timestamp guardado en JSON
+      if ('seconds' in obj && 'nanoseconds' in obj && Object.keys(obj).length === 2) {
+        return new Timestamp(obj.seconds, obj.nanoseconds);
+      }
+      
+      const newObj = {};
+      for (const key in obj) {
+        newObj[key] = reviveTimestamps(obj[key]);
+      }
+      return newObj;
+    };
+    
+    return reviveTimestamps(data);
+  } catch (e) {
+    return null;
+  }
+};
+
 // Lista de administradores principales (pueden gestionar vendedores)
 const MAIN_ADMINS = [
   "rodrigo.n.arena@hotmail.com",
@@ -441,9 +469,18 @@ export default function App() {
   // Estados principales
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState({});
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => {
+    return parseFirestoreCache(localStorage.getItem(`cachedProducts_${APP_ID}`)) || [];
+  });
   const [pendingProducts, setPendingProducts] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`cart_${APP_ID}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [favorites, setFavorites] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [chats, setChats] = useState([]);
@@ -581,6 +618,11 @@ export default function App() {
     whatsappNumber: "",
     totalEarned: 0
   });
+
+  // Guardar carrito en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem(`cart_${APP_ID}`, JSON.stringify(cart));
+  }, [cart]);
 
   // Cargar usuarios autorizados desde Firestore
   useEffect(() => {
@@ -747,6 +789,12 @@ export default function App() {
       (snapshot) => {
         const productsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsList);
+        // Guardar en caché local para carga instantánea al volver a entrar
+        try {
+          localStorage.setItem(`cachedProducts_${APP_ID}`, JSON.stringify(productsList));
+        } catch (e) {
+          console.warn("Error guardando caché local de productos:", e);
+        }
       },
       (error) => {
         console.error("Error al suscribirse a productos públicos:", error);
